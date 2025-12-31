@@ -39,7 +39,15 @@ def create_controller() -> MotorController:
         active_high=config.ELECTROMAGNET_ACTIVE_HIGH,
     )
 
-    return MotorController(motor_x, motor_y, electromagnet)
+    return MotorController(
+        motor_x,
+        motor_y,
+        electromagnet,
+        enable_acceleration=config.ENABLE_ACCELERATION,
+        min_step_delay=config.MIN_STEP_DELAY,
+        max_step_delay=config.MAX_STEP_DELAY,
+        accel_steps=config.ACCELERATION_STEPS,
+    )
 
 
 @click.group()

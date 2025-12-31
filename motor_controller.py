@@ -252,6 +252,48 @@ class StepperMotor:
             self._step_device.off()
         print("Emergency stop triggered")
 
+    @staticmethod
+    def calculate_step_delay(
+        step_number: int,
+        total_steps: int,
+        min_delay: float,
+        max_delay: float,
+        accel_steps: int,
+    ) -> float:
+        """
+        Calculate step delay for trapezoidal acceleration profile.
+
+        The velocity profile has three phases:
+        1. Acceleration: linearly increase speed (decrease delay)
+        2. Constant: maintain max speed
+        3. Deceleration: linearly decrease speed (increase delay)
+
+        Args:
+            step_number: Current step number (0-indexed)
+            total_steps: Total number of steps in the move
+            min_delay: Minimum delay (max speed)
+            max_delay: Maximum delay (starting/ending speed)
+            accel_steps: Number of steps for acceleration/deceleration ramp
+
+        Returns:
+            Step delay in seconds for this step
+        """
+        # If move is too short for full acceleration, reduce ramp
+        effective_accel_steps = min(accel_steps, total_steps // 2)
+
+        if step_number < effective_accel_steps:
+            # Acceleration phase: interpolate from max_delay to min_delay
+            ratio = step_number / effective_accel_steps
+            return max_delay - (max_delay - min_delay) * ratio
+        elif step_number >= total_steps - effective_accel_steps:
+            # Deceleration phase: interpolate from min_delay back to max_delay
+            steps_into_decel = step_number - (total_steps - effective_accel_steps)
+            ratio = steps_into_decel / effective_accel_steps
+            return min_delay + (max_delay - min_delay) * ratio
+        else:
+            # Constant speed phase: use minimum delay (max speed)
+            return min_delay
+
 
 class MotorController:
     """Control both X and Y stepper motors."""
@@ -261,6 +303,10 @@ class MotorController:
         motor_x: StepperMotor,
         motor_y: StepperMotor,
         electromagnet: Electromagnet | None = None,
+        enable_acceleration: bool = True,
+        min_step_delay: float = 0.0008,
+        max_step_delay: float = 0.004,
+        accel_steps: int = 50,
     ):
         """
         Initialize the dual-axis motor controller.
@@ -269,10 +315,18 @@ class MotorController:
             motor_x: StepperMotor instance for X axis
             motor_y: StepperMotor instance for Y axis
             electromagnet: Optional Electromagnet instance
+            enable_acceleration: Enable trapezoidal acceleration profile
+            min_step_delay: Minimum delay between steps (max speed)
+            max_step_delay: Maximum delay between steps (start/end speed)
+            accel_steps: Number of steps for acceleration/deceleration ramps
         """
         self.motor_x = motor_x
         self.motor_y = motor_y
         self.electromagnet = electromagnet
+        self.enable_acceleration = enable_acceleration
+        self.min_step_delay = min_step_delay
+        self.max_step_delay = max_step_delay
+        self.accel_steps = accel_steps
 
     def home_all(
         self,
@@ -324,7 +378,7 @@ class MotorController:
         Move both motors simultaneously using Bresenham's line algorithm.
 
         This ensures diagonal movements follow a straight line and both
-        motors finish at the same time.
+        motors finish at the same time. Includes optional acceleration.
 
         Args:
             dx: Steps to move on X axis (signed)
@@ -355,25 +409,64 @@ class MotorController:
         self.motor_x._set_direction(x_dir)
         self.motor_y._set_direction(y_dir)
 
-        # Bresenham's line algorithm for coordinated stepping
+        # Total steps is the dominant axis (Bresenham takes max(dx, dy) steps)
+        total_steps = max(abs_dx, abs_dy)
+
+        # Save original step delays
+        original_x_delay = self.motor_x.step_delay
+        original_y_delay = self.motor_y.step_delay
+
+        # Bresenham's line algorithm with acceleration
+        step_count = 0
+
         if abs_dx > abs_dy:
             # X-dominant movement
             error = abs_dx / 2
             for _ in range(abs_dx):
+                # Calculate step delay with acceleration if enabled
+                if self.enable_acceleration:
+                    delay = StepperMotor.calculate_step_delay(
+                        step_count,
+                        total_steps,
+                        self.min_step_delay,
+                        self.max_step_delay,
+                        self.accel_steps,
+                    )
+                    self.motor_x.step_delay = delay
+                    self.motor_y.step_delay = delay
+
                 self.motor_x._pulse_step()
                 error -= abs_dy
                 if error < 0:
                     self.motor_y._pulse_step()
                     error += abs_dx
+                step_count += 1
         else:
             # Y-dominant movement
             error = abs_dy / 2
             for _ in range(abs_dy):
+                # Calculate step delay with acceleration if enabled
+                if self.enable_acceleration:
+                    delay = StepperMotor.calculate_step_delay(
+                        step_count,
+                        total_steps,
+                        self.min_step_delay,
+                        self.max_step_delay,
+                        self.accel_steps,
+                    )
+                    self.motor_x.step_delay = delay
+                    self.motor_y.step_delay = delay
+
                 self.motor_y._pulse_step()
                 error -= abs_dx
                 if error < 0:
                     self.motor_x._pulse_step()
                     error += abs_dy
+                step_count += 1
+
+        # Restore original step delays
+        self.motor_x.step_delay = original_x_delay
+        self.motor_y.step_delay = original_y_delay
 
         # Update positions (Bresenham ensures we took exactly dx and dy steps)
         self.motor_x.current_position = target_x

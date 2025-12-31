@@ -144,13 +144,40 @@ uv sync --extra dev
 
 Edit [config.py](config.py) to customize:
 
-- **GPIO Pins**: `MOTOR_X_STEP_PIN`, `MOTOR_X_DIR_PIN`, `MOTOR_Y_STEP_PIN`, `MOTOR_Y_DIR_PIN`, `MOTOR_X_HOME_PIN`, `MOTOR_Y_HOME_PIN`, `ELECTROMAGNET_PIN`
-- **Direction Inversion**: `MOTOR_X_INVERT`, `MOTOR_Y_INVERT` - Set to `True` if motor spins opposite direction
-- **Max Positions**: `MAX_X_POSITION`, `MAX_Y_POSITION` - Define carriage limits in steps
-- **Speed**: `STEP_DELAY` - Delay between steps (lower = faster)
-- **Homing**: `HOME_DIRECTION_X`, `HOME_DIRECTION_Y` - Direction to move during homing
-- **Homing Speed**: `HOME_STEP_DELAY` - Slower speed for safe homing
-- **Electromagnet**: `ELECTROMAGNET_ACTIVE_HIGH` - `True` for NPN transistor, `False` for active-low relay
+**GPIO Pins**:
+- `MOTOR_X_STEP_PIN`, `MOTOR_X_DIR_PIN`, `MOTOR_Y_STEP_PIN`, `MOTOR_Y_DIR_PIN`
+- `MOTOR_X_HOME_PIN`, `MOTOR_Y_HOME_PIN`, `ELECTROMAGNET_PIN`
+
+**Chess Board Configuration**:
+- `SQUARE_SIZE_MM` - Size of each chess square in millimeters (default: 31mm)
+- `BOARD_ROWS`, `BOARD_COLS` - Board dimensions (default: 8×8 for standard chess)
+- `STEPS_PER_MM` - Motor steps per millimeter (calibrate based on your setup)
+- `BOARD_WIDTH_STEPS`, `BOARD_HEIGHT_STEPS` - Auto-calculated board dimensions
+
+**Motor Settings**:
+- `MOTOR_X_INVERT`, `MOTOR_Y_INVERT` - Set to `True` if motor spins opposite direction
+- `MAX_X_POSITION`, `MAX_Y_POSITION` - Auto-sized to fit board + margin
+- `STEP_DELAY` - Base delay between steps (used when acceleration disabled)
+
+**Acceleration Settings** ✨:
+- `ENABLE_ACCELERATION` - Enable trapezoidal acceleration profile (`True` recommended)
+- `MIN_STEP_DELAY` - Minimum delay (maximum speed) - default `0.0008s` = 1250 steps/second
+- `MAX_STEP_DELAY` - Maximum delay (starting/ending speed) - default `0.004s` = 250 steps/second
+- `ACCELERATION_STEPS` - Number of steps for ramp up/down - default `300` steps
+
+**Homing**:
+- `HOME_DIRECTION_X`, `HOME_DIRECTION_Y` - Direction to move during homing (0 or 1)
+- `HOME_STEP_DELAY` - Slower speed for safe homing
+
+**Electromagnet**:
+- `ELECTROMAGNET_ACTIVE_HIGH` - `True` for NPN transistor/MOSFET, `False` for active-low relay
+
+**Acceleration Benefits**:
+- **Prevents missed steps** by starting slow
+- **Smoother movement** with gradual speed changes
+- **Reduced mechanical stress** on motors and carriage
+- **Quieter operation** with less vibration
+- **Faster overall** due to higher maximum speed (1250 steps/s vs 500 steps/s constant)
 
 ## Usage
 
@@ -160,11 +187,23 @@ Edit [config.py](config.py) to customize:
 # Home all motors (must do this first!)
 python main.py home
 
-# Move to absolute position
+# Move to absolute position (in steps)
 python main.py move 1000 2000
 
 # Move relative to current position
 python main.py move-rel --dx 100 --dy -50
+
+# Chess board navigation (via Python API)
+from board_navigation import square_to_steps, chess_notation_to_steps
+from motor_controller import MotorController
+
+# Move to e4 square using chess notation
+x, y = chess_notation_to_steps('e4')
+controller.move_to(x, y)
+
+# Or use row/column (0-indexed, 0=bottom-left)
+x, y = square_to_steps(row=3, col=4)  # Same as e4
+controller.move_to(x, y)
 
 # Electromagnet control
 python main.py magnet-on       # Turn magnet on
@@ -180,6 +219,31 @@ python main.py status
 # Emergency stop (also turns off magnet)
 python main.py stop
 ```
+
+## Testing
+
+### Board Navigation Tests
+
+Run the test suite to validate chess board navigation and generate visualizations:
+
+```bash
+# Run all tests
+pytest tests/test_board_navigation.py -v
+
+# Run specific test
+pytest tests/test_board_navigation.py::test_snake_pattern_all_squares -v
+```
+
+**Generated Visualizations** (in `tests/output/`):
+- `edge_square.png` - Board perimeter movement
+- `all_diagonals.png` - Four major diagonal paths
+- `snake_pattern.png` - Complete 64-square coverage
+
+**Test Coverage**:
+- Board edge navigation
+- Diagonal movements (all 4 directions)
+- Snake pattern through all squares
+- Configuration validation
 
 ### Interactive Mode
 

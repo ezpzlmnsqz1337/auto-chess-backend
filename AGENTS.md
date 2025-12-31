@@ -18,8 +18,16 @@
 
 **config.py**
 - Centralized configuration for all GPIO pins
-- Tunable parameters: step speeds, limits, directions
+- Chess board configuration (square size, board dimensions)
+- Tunable parameters: step speeds, limits, directions, acceleration
 - Easy hardware reconfiguration without code changes
+
+**board_navigation.py**
+- Chess board coordinate conversions
+- `square_to_steps(row, col)` - Board coordinates to motor steps
+- `chess_notation_to_steps('e4')` - Chess notation to motor steps
+- `steps_to_mm(x, y)` - Steps to millimeters conversion
+- Board dimension queries
 
 **main.py**
 - CLI with subcommands for all operations
@@ -70,16 +78,34 @@ uv run mypy --html-report ./mypy-report .
 - Warns on unused configs and redundant casts
 - Configured to ignore missing gpiozero type stubs
 
+### Pytest (Testing Framework)
+Test framework for comprehensive testing with visualizations.
+
+```bash
+# Run all tests
+pytest tests/ -v
+
+# Run specific test file
+pytest tests/test_board_navigation.py -v
+
+# Run with output
+pytest tests/ -v -s
+```
+
+**Test Structure**:
+- `tests/test_board_navigation.py` - Chess board navigation tests
+- `tests/output/` - Generated visualization plots
+
 ### Pre-commit Workflow
 
 Before committing code, run:
 ```bash
-uv run ruff format . && uv run ruff check --fix . && uv run mypy .
+uv run ruff format . && uv run ruff check --fix . && uv run mypy . && pytest tests/
 ```
 
 Or create an alias in your shell:
 ```bash
-alias lint='uv run ruff format . && uv run ruff check --fix . && uv run mypy .'
+alias lint='uv run ruff format . && uv run ruff check --fix . && uv run mypy . && pytest tests/'
 ```
 
 ## Design Decisions
@@ -120,13 +146,56 @@ Homing is sequential (X then Y) to simplify debugging.
 - Bounds checking before moves
 - Throws exception if limits exceeded
 
+### Coordinated Movement
+
+Uses **Bresenham's line algorithm** to move both motors simultaneously:
+- Ensures straight diagonal paths (not L-shaped)
+- Both axes complete at the same time
+- Proportional step distribution across dominant axis
+
+### Acceleration Profile
+
+Implements **trapezoidal velocity profile** for smooth motion:
+
+```
+Velocity
+   ↑
+   │     ┌─────────────┐  ← Constant max speed
+   │    /               \
+   │   /                 \
+   │  /                   \
+   │ /                     \
+   └──────────────────────────→ Time
+     ↑         ↑          ↑
+  Accel   Constant    Decel
+```
+
+**Three phases**:
+1. **Acceleration**: Linearly ramp from `MAX_STEP_DELAY` (250 steps/s) to `MIN_STEP_DELAY` (1250 steps/s)
+2. **Constant Speed**: Maintain maximum velocity
+3. **Deceleration**: Linearly ramp back to starting speed
+
+**Benefits**:
+- Prevents missed steps by starting slow
+- Reduces mechanical stress and vibration
+- Enables higher maximum speeds safely
+- Smoother, quieter operation
+
+**Configuration** (`config.py`):
+- `ENABLE_ACCELERATION` - Toggle on/off
+- `MIN_STEP_DELAY` - Max speed (must be >0.0005s for StealthChop)
+- `MAX_STEP_DELAY` - Start/end speed
+- `ACCELERATION_STEPS` - Ramp length (50 recommended)
+
+**For short moves**: If total steps < 2× `ACCELERATION_STEPS`, ramp is automatically reduced to fit.
+
 ### Step Timing
 
 ```
 Step pulse timing:
 ├── GPIO HIGH for STEP_PULSE_DURATION (1ms default)
-├── GPIO LOW for STEP_DELAY (2ms default)
-└── Total: ~3ms per step = ~333 Hz default
+├── GPIO LOW for STEP_DELAY (varies with acceleration)
+└── With acceleration: 0.8ms to 4ms = 250-1250 Hz range
 ```
 
 Adjustable for different motor/driver combinations.
@@ -150,41 +219,38 @@ Optional 4.7kΩ pulldown on step pins for EMI immunity when motors running nearb
 5. [ ] Interactive mode commands work
 6. [ ] Code passes `ruff check` with no errors
 7. [ ] Code passes `mypy` with no type errors
+8. [ ] Acceleration profile produces smooth movement
+9. [ ] Motors don't skip steps with acceleration enabled
 
 ### Unit Tests (Future)
 - Test position calculations
 - Test boundary conditions
 - Test direction inversion logic
+- Test acceleration profile calculations
 
 ### Integration Tests (Future)
 - Homing with real motors
 - Movement precision verification
 - Load testing with continuous movement
-
-### Manual Testing Checklist
-1. [ ] Motors respond to step/direction signals
-2. [ ] Direction inversion works correctly
-3. [ ] Limit switches trigger homing
-4. [ ] Position limits enforced
-5. [ ] Interactive mode commands work
+- Acceleration stress testing
 
 ## Known Limitations
 
 - **Homing is sequential**: X then Y (fine for slow chess movements)
-- **No acceleration**: Stepper runs at constant speed (add later if needed)
 - **Position lost on reboot**: No persistent storage of last position
 - **Single-threaded**: Blocking movement commands
 
 ## Future Enhancements
 
 1. **Persistence**: Save last position to file/database
-2. **Acceleration**: Ramping step speed for smoother movement
-3. **Parallel homing**: Home both axes simultaneously
-4. **UART TMC2208**: Enable monitor current/diagnostics
-5. **Web API**: Control via HTTP REST endpoints
-6. **Move queue**: Schedule multiple moves
-7. **Position profiles**: Store named positions (e.g., "a1", "h8")
-8. **Electromagnetic control**: Interface with magnet on/off logic
+## Future Enhancements
+
+1. **Persistence**: Save last position to file/database
+2. **Parallel homing**: Home both axes simultaneously
+3. **UART TMC2208**: Enable monitor current/diagnostics
+4. **Web API**: Control via HTTP REST endpoints
+5. **Move queue**: Schedule multiple moves
+6. **Position profiles**: Store named positions (e.g., "a1", "h8")
 
 ## Pin Assignment Rationale
 
@@ -197,6 +263,9 @@ Optional 4.7kΩ pulldown on step pins for EMI immunity when motors running nearb
 **Home switches**: GPIO 23, 24
 - Consecutive pins for symmetry
 
+**Electromagnet**: GPIO 25
+- Near home switches for clean wiring
+
 All chosen pins avoid:
 - SPI/I2C buses
 - UART pins
@@ -205,12 +274,21 @@ All chosen pins avoid:
 
 ## Speed Calculations
 
-With default settings:
-- `STEP_DELAY = 0.002s` → 500 steps/second
-- 16× microstepping = ~31 full rotations/second
-- NEMA motor (1.8°/step) = ~1 rev/second electrical
+**With Acceleration Enabled** (default):
+- Start/end speed: `MAX_STEP_DELAY = 0.004s` → 250 steps/second
+- Maximum speed: `MIN_STEP_DELAY = 0.0008s` → 1250 steps/second
+- Acceleration time: 50 steps × average delay ≈ 0.12 seconds
+- Total for 200-step move: ~0.32 seconds (includes accel + constant + decel)
 
-Adjust `STEP_DELAY` for faster/slower movement.
+**Without Acceleration**:
+- Constant speed: `STEP_DELAY = 0.002s` → 500 steps/second
+- Total for 200-step move: 0.40 seconds
+
+**Result**: Acceleration is ~20% faster while being smoother and quieter!
+
+**Microstepping**: 16× microstepping = 3200 steps per motor revolution (for 1.8° NEMA motor)
+
+Adjust `MIN_STEP_DELAY` and `MAX_STEP_DELAY` for different speed profiles.
 
 ## Debugging Tips
 
