@@ -188,6 +188,13 @@ Edit [config.py](config.py) to customize:
 # Home all motors (must do this first!)
 python main.py home
 
+# Demo mode - Execute calibration patterns (automatically homes first)
+python main.py demo                    # Run all patterns (square, diagonals, snake)
+python main.py demo --pattern square   # Just the board perimeter
+python main.py demo --pattern diagonals # Just the 4 major diagonals
+python main.py demo --pattern snake    # Just the snake pattern (all 64 squares)
+python main.py demo --no-home          # Skip auto-homing if already homed
+
 # Move to absolute position (in steps)
 python main.py move 1000 2000
 
