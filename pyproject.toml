@@ -7,13 +7,13 @@ requires-python = ">=3.13.5"
 dependencies = [
     "gpiozero>=2.0",
     "click>=8.1.0",
-    "matplotlib>=3.10.8",
 ]
 
 [project.optional-dependencies]
 dev = [
     "ruff>=0.8.0",
     "mypy>=1.13.0",
+    "matplotlib>=3.10.8",
 ]
 
 [build-system]
@@ -63,12 +63,24 @@ warn_unused_ignores = true
 warn_no_return = true
 follow_imports = "normal"
 ignore_missing_imports = true
+exclude = ["analysis/"]
 
 [[tool.mypy.overrides]]
 module = "gpiozero"
 ignore_missing_imports = true
 
+[[tool.mypy.overrides]]
+module = "tests.test_utils"
+disable_error_code = ["method-assign"]
+
 [dependency-groups]
 dev = [
     "pytest>=9.0.2",
+    "pytest-env>=1.2.0",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+env = [
+    "MOTOR_DEBUG=0"  # Disable debug prints during testing for speed
 ]
