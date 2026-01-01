@@ -2,101 +2,27 @@
 
 from pathlib import Path
 
-import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 
 import config
 from board_navigation import square_to_steps
-
-
-def plot_board_with_path(
-    positions: list[tuple[int, int]], title: str, filename: str, show_squares: bool = True
-) -> None:
-    """
-    Plot the chess board with a movement path.
-
-    Args:
-        positions: List of (x, y) tuples in steps
-        title: Plot title
-        filename: Output filename
-        show_squares: Whether to show square grid
-    """
-    fig, ax = plt.subplots(figsize=(10, 10))
-
-    # Convert positions to mm for better visualization
-    x_mm = [x / config.STEPS_PER_MM for x, _ in positions]
-    y_mm = [y / config.STEPS_PER_MM for _, y in positions]
-
-    # Draw board grid
-    if show_squares:
-        for row in range(config.BOARD_ROWS + 1):
-            y = row * config.SQUARE_SIZE_MM
-            ax.axhline(y, color="gray", linewidth=0.5, alpha=0.5)
-
-        for col in range(config.BOARD_COLS + 1):
-            x = col * config.SQUARE_SIZE_MM
-            ax.axvline(x, color="gray", linewidth=0.5, alpha=0.5)
-
-        # Shade squares like chess board
-        for row in range(config.BOARD_ROWS):
-            for col in range(config.BOARD_COLS):
-                if (row + col) % 2 == 1:
-                    x_start = col * config.SQUARE_SIZE_MM
-                    y_start = row * config.SQUARE_SIZE_MM
-                    rect = mpatches.Rectangle(
-                        (x_start, y_start),
-                        config.SQUARE_SIZE_MM,
-                        config.SQUARE_SIZE_MM,
-                        facecolor="lightgray",
-                        alpha=0.3,
-                    )
-                    ax.add_patch(rect)
-
-    # Plot path
-    ax.plot(x_mm, y_mm, "b-", linewidth=2, label="Path", zorder=2)
-    ax.plot(x_mm[0], y_mm[0], "go", markersize=12, label="Start", zorder=3)
-    ax.plot(x_mm[-1], y_mm[-1], "ro", markersize=12, label="End", zorder=3)
-
-    # Mark key waypoints
-    for i, (x, y) in enumerate(zip(x_mm, y_mm, strict=True)):
-        if i % max(1, len(x_mm) // 20) == 0:  # Show every ~5% of points
-            ax.plot(x, y, "ko", markersize=4, alpha=0.5, zorder=1)
-
-    ax.set_xlabel("X Position (mm)", fontsize=12)
-    ax.set_ylabel("Y Position (mm)", fontsize=12)
-    ax.set_title(title, fontsize=14, fontweight="bold")
-    ax.grid(True, alpha=0.3)
-    ax.legend(fontsize=10)
-    ax.set_aspect("equal")
-
-    # Set limits with some margin
-    board_width_mm = config.BOARD_COLS * config.SQUARE_SIZE_MM
-    board_height_mm = config.BOARD_ROWS * config.SQUARE_SIZE_MM
-    margin = config.SQUARE_SIZE_MM * 0.5
-    ax.set_xlim(-margin, board_width_mm + margin)
-    ax.set_ylim(-margin, board_height_mm + margin)
-
-    # Add board coordinates
-    for col in range(config.BOARD_COLS):
-        x = (col + 0.5) * config.SQUARE_SIZE_MM
-        label = chr(ord("a") + col)
-        ax.text(x, -margin / 2, label, ha="center", va="center", fontsize=10, fontweight="bold")
-
-    for row in range(config.BOARD_ROWS):
-        y = (row + 0.5) * config.SQUARE_SIZE_MM
-        ax.text(
-            -margin / 2, y, str(row + 1), ha="center", va="center", fontsize=10, fontweight="bold"
-        )
-
-    plt.tight_layout()
-    plt.savefig(f"tests/output/{filename}", dpi=150, bbox_inches="tight")
-    plt.close()
+from tests.test_utils import (
+    capture_movement_path,
+    create_test_controller,
+    draw_chess_board_grid,
+    plot_board_with_path,
+    plot_path_with_gradient,
+    plot_speed_over_time,
+)
 
 
 def test_board_edge_square() -> None:
-    """Test moving around the edge of the board (drawing a square)."""
+    """Test moving around the edge of the board (drawing a square) using actual motor code."""
     # Create output directory
     Path("tests/output").mkdir(parents=True, exist_ok=True)
+
+    # Create controller and home it
+    controller = create_test_controller()
 
     # Corners of the board
     corners = [
@@ -107,18 +33,28 @@ def test_board_edge_square() -> None:
         square_to_steps(0, 0),  # back to a1
     ]
 
-    positions = [(0, 0)] + corners
+    # Capture actual movement path using motor controller
+    positions, timestamps, speeds = capture_movement_path(controller, corners)
 
-    # Plot
+    # Plot path
     plot_board_with_path(
         positions, "Board Edge Square Test\nMoving Around Board Perimeter", "edge_square.png"
     )
 
-    print(f"✓ Edge square test passed - traveled through {len(positions)} positions")
+    # Plot speed over time
+    plot_speed_over_time(
+        timestamps,
+        speeds,
+        "Motor Speed - Board Edge Square Test",
+        "edge_square_speed.png",
+    )
+
+    print(f"✓ Edge square test passed - traveled through {len(positions)} actual positions")
+    print(f"  Final position: {controller.get_position()}")
 
 
 def test_all_diagonals() -> None:
-    """Test moving along all four major diagonals."""
+    """Test moving along all four major diagonals using actual motor code."""
     Path("tests/output").mkdir(parents=True, exist_ok=True)
 
     diagonals = [
@@ -132,16 +68,6 @@ def test_all_diagonals() -> None:
         (square_to_steps(7, 7), square_to_steps(0, 0)),
     ]
 
-    all_positions = []
-
-    for start, end in diagonals:
-        positions = [(0, 0), start, end, (0, 0)]
-        all_positions.append(positions)
-
-    # Plot all diagonals together
-    fig, axes = plt.subplots(2, 2, figsize=(14, 14))
-    axes_flat = axes.flatten()
-
     diagonal_names = [
         "Diagonal 1: a1 → h8 (↗)",
         "Diagonal 2: h1 → a8 (↖)",
@@ -149,26 +75,45 @@ def test_all_diagonals() -> None:
         "Diagonal 4: h8 → a1 (↙)",
     ]
 
-    for idx, (positions, name) in enumerate(zip(all_positions, diagonal_names, strict=True)):
-        ax = axes_flat[idx]
+    # Reuse single controller for all diagonals
+    controller = create_test_controller()
 
-        # Convert to mm
+    # Capture paths for all diagonals
+    all_positions = []
+    all_timestamps = []
+    all_speeds = []
+    for start, end in diagonals:
+        # Capture: position to start, then diagonal move
+        # Skip velocity tracking for the positioning move (first move)
+        start_x, start_y = start
+        end_x, end_y = end
+        positions, timestamps, speeds = capture_movement_path(
+            controller, [(start_x, start_y), (end_x, end_y)], skip_first_move=True
+        )
+        all_positions.append(positions)
+        all_timestamps.append(timestamps)
+        all_speeds.append(speeds)
+
+    # Create 2x2 subplot
+    fig, axes = plt.subplots(2, 2, figsize=(14, 14))
+    axes_flat = axes.flatten()
+
+    # Plot each diagonal
+    for positions, name, ax in zip(all_positions, diagonal_names, axes_flat, strict=True):
         x_mm = [x / config.STEPS_PER_MM for x, _ in positions]
         y_mm = [y / config.STEPS_PER_MM for _, y in positions]
 
-        # Draw board grid
-        for row in range(config.BOARD_ROWS + 1):
-            y = row * config.SQUARE_SIZE_MM
-            ax.axhline(y, color="gray", linewidth=0.5, alpha=0.5)
+        draw_chess_board_grid(ax)
+        plot_path_with_gradient(ax, x_mm, y_mm, sample_interval=max(1, len(x_mm) // 50))
 
-        for col in range(config.BOARD_COLS + 1):
-            x = col * config.SQUARE_SIZE_MM
-            ax.axvline(x, color="gray", linewidth=0.5, alpha=0.5)
-
-        # Plot path
-        ax.plot(x_mm, y_mm, "b-", linewidth=2.5, label="Path")
+        # Start and end markers
         ax.plot(x_mm[0], y_mm[0], "go", markersize=10, label="Start", zorder=3)
         ax.plot(x_mm[-2], y_mm[-2], "ro", markersize=10, label="End", zorder=3)
+
+        # Compact axes setup
+        board_width_mm = config.BOARD_COLS * config.SQUARE_SIZE_MM
+        board_height_mm = config.BOARD_ROWS * config.SQUARE_SIZE_MM
+        margin = config.SQUARE_SIZE_MM * 0.5
 
         ax.set_xlabel("X (mm)", fontsize=10)
         ax.set_ylabel("Y (mm)", fontsize=10)
@@ -176,26 +121,85 @@ def test_all_diagonals() -> None:
         ax.grid(True, alpha=0.3)
         ax.legend(fontsize=8)
         ax.set_aspect("equal")
-
-        board_width_mm = config.BOARD_COLS * config.SQUARE_SIZE_MM
-        board_height_mm = config.BOARD_ROWS * config.SQUARE_SIZE_MM
-        margin = config.SQUARE_SIZE_MM * 0.5
         ax.set_xlim(-margin, board_width_mm + margin)
         ax.set_ylim(-margin, board_height_mm + margin)
 
-    plt.suptitle("All Four Major Diagonals Test", fontsize=16, fontweight="bold")
+        # Add position count
+        ax.text(
+            0.02,
+            0.98,
+            f"{len(x_mm)} pts",
+            transform=ax.transAxes,
+            fontsize=8,
+            verticalalignment="top",
+            bbox={"boxstyle": "round", "facecolor": "wheat", "alpha": 0.8},
+        )
+
+    plt.suptitle(
+        "All Four Major Diagonals Test (Actual Motor Movement)", fontsize=16, fontweight="bold"
+    )
     plt.tight_layout()
-    plt.savefig("tests/output/all_diagonals.png", dpi=150, bbox_inches="tight")
+    plt.savefig("tests/output/all_diagonals.png", dpi=100, bbox_inches="tight")
     plt.close()
 
+    # Create speed plot for all diagonals
+    fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+    axes_flat = axes.flatten()
+
+    for timestamps, speeds, name, ax in zip(
+        all_timestamps, all_speeds, diagonal_names, axes_flat, strict=True
+    ):
+        # Simple line plot like in analysis folder
+        ax.plot(timestamps, speeds, linewidth=2, color="#2E86AB", alpha=0.9)
+
+        avg_speed = sum(speeds) / len(speeds) if speeds else 0
+        max_speed = max(speeds) if speeds else 0
+        ax.axhline(
+            avg_speed,
+            color="orange",
+            linestyle="--",
+            linewidth=1.5,
+            label=f"Avg: {avg_speed:.1f} mm/s",
+            alpha=0.7,
+        )
+
+        ax.set_xlabel("Time (s)", fontsize=10, fontweight="bold")
+        ax.set_ylabel("Velocity (mm/s)", fontsize=10, fontweight="bold")
+        ax.set_title(name, fontsize=11, fontweight="bold")
+        ax.grid(alpha=0.3)
+        ax.legend(fontsize=8)
+
+        stats_text = f"Max: {max_speed:.1f} mm/s\nAvg: {avg_speed:.1f} mm/s"
+        ax.text(
+            0.98,
+            0.98,
+            stats_text,
+            transform=ax.transAxes,
+            fontsize=8,
+            verticalalignment="top",
+            horizontalalignment="right",
+            bbox={"boxstyle": "round", "facecolor": "wheat", "alpha": 0.8},
+        )
+
+    plt.suptitle("Motor Velocity - All Diagonals Test", fontsize=16, fontweight="bold")
+    plt.tight_layout()
+    plt.savefig("tests/output/all_diagonals_speed.png", dpi=100, bbox_inches="tight")
+    plt.close()
+
+    total_steps = sum(len(pos) for pos in all_positions)
     print(f"✓ All diagonals test passed - tested {len(diagonals)} diagonals")
+    print(f"  Total steps executed: {total_steps}")
 
 
 def test_snake_pattern_all_squares() -> None:
-    """Test snake pattern through all 64 squares."""
+    """Test snake pattern through all 64 squares using actual motor code."""
     Path("tests/output").mkdir(parents=True, exist_ok=True)
 
-    positions = [(0, 0)]  # Start at origin
+    # Create controller
+    controller = create_test_controller()
+
+    # Build target positions for snake pattern
+    target_positions = []
 
     # Snake pattern: left-to-right on even rows, right-to-left on odd rows
     for row in range(config.BOARD_ROWS):
@@ -204,19 +208,29 @@ def test_snake_pattern_all_squares() -> None:
 
         for col in cols:
             x, y = square_to_steps(row, col)
-            positions.append((x, y))
+            target_positions.append((x, y))
 
-    # Plot
+    # Capture actual movement path
+    positions, timestamps, speeds = capture_movement_path(controller, target_positions)
+
+    # Plot path
     plot_board_with_path(
         positions,
-        f"Snake Pattern Test\nVisiting All {config.BOARD_ROWS * config.BOARD_COLS} Squares",
+        f"Snake Pattern Test\nVisiting All {config.BOARD_ROWS * config.BOARD_COLS} Squares (Actual Motor Movement)",
         "snake_pattern.png",
     )
 
-    # Verify we visited all 64 squares plus origin
-    assert len(positions) == config.BOARD_ROWS * config.BOARD_COLS + 1
+    # Plot speed over time
+    plot_speed_over_time(
+        timestamps, speeds, "Motor Speed - Snake Pattern Test", "snake_pattern_speed.png"
+    )
 
-    print(f"✓ Snake pattern test passed - visited {len(positions) - 1} squares")
+    # Verify we visited all 64 squares
+    assert len(target_positions) == config.BOARD_ROWS * config.BOARD_COLS
+
+    print(f"✓ Snake pattern test passed - visited {len(target_positions)} squares")
+    print(f"  Total motor steps executed: {len(positions)}")
+    print(f"  Final position: {controller.get_position()}")
 
 
 def test_board_configuration() -> None:
