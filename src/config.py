@@ -6,10 +6,12 @@ Configuration for the stepper motor control system.
 # Motor X (horizontal axis)
 MOTOR_X_STEP_PIN = 17
 MOTOR_X_DIR_PIN = 18
+MOTOR_X_ENABLE_PIN = 5  # LOW = enabled, HIGH = disabled
 
 # Motor Y (vertical axis)
 MOTOR_Y_STEP_PIN = 27
 MOTOR_Y_DIR_PIN = 22
+MOTOR_Y_ENABLE_PIN = 6  # LOW = enabled, HIGH = disabled
 
 # Homing switch pins (connect to GPIO with pullup resistors)
 # These should be connected to the limit switches on each axis
@@ -30,9 +32,11 @@ BOARD_ROWS = 8
 BOARD_COLS = 8
 
 # Steps per millimeter (calibrate based on your mechanical setup)
-# Example: With 16x microstepping, 200 steps/rev motor, and 20mm/rev lead screw:
+# GT2 belt: With 16x microstepping, 200 steps/rev motor, and 20-tooth pulley (40mm/rev):
+# Steps per mm = (200 * 16) / 40 = 80 steps/mm
+# Lead screw: With 16x microstepping, 200 steps/rev motor, and 20mm/rev lead screw:
 # Steps per mm = (200 * 16) / 20 = 160 steps/mm
-STEPS_PER_MM = 160.0  # Adjust based on your pulley/belt/leadscrew setup
+STEPS_PER_MM = 80.0  # GT2 belt with 20-tooth pulley
 
 # Calculate board dimensions in steps
 BOARD_WIDTH_STEPS = int(BOARD_COLS * SQUARE_SIZE_MM * STEPS_PER_MM)
@@ -45,8 +49,10 @@ MAX_X_POSITION = max(5000, BOARD_WIDTH_STEPS + 1000)  # Board width + margin
 MAX_Y_POSITION = max(5000, BOARD_HEIGHT_STEPS + 1000)  # Board height + margin
 
 # Step timing
-# Pulse duration in seconds (default: 1ms)
-STEP_PULSE_DURATION = 0.001
+# Pulse duration in seconds
+# TMC2208 requires minimum 1-5 microseconds (per datasheet)
+# Using 5 microseconds for reliability
+STEP_PULSE_DURATION = 0.000005  # 5 microseconds
 
 # Delay between steps in seconds (adjust for speed, lower = faster)
 # Default is 0.002s (500 steps/second)
@@ -58,8 +64,9 @@ STEP_DELAY = 0.002
 ENABLE_ACCELERATION = True
 
 # Minimum step delay (maximum speed) in seconds
-# Must be > 0.0005s to maintain StealthChop operation
-MIN_STEP_DELAY = 0.0008  # ~1250 steps/second max speed
+# StealthChop remains quiet up to ~10kHz
+# 60mm/s = 4800 steps/s, 100mm/s = 8000 steps/s
+MIN_STEP_DELAY = 0.000208  # 4800 steps/second = 60mm/s max speed
 
 # Maximum step delay (starting/ending speed) in seconds
 MAX_STEP_DELAY = 0.004  # ~250 steps/second starting speed

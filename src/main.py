@@ -7,9 +7,17 @@ Controls movement of electromagnet under a chess board.
 import sys
 
 import click
+from gpiozero import Device
+from gpiozero.pins.mock import MockFactory
 
 import config
 from motor_controller import Electromagnet, MotorController, StepperMotor
+
+# Use mock pin factory if no real GPIO hardware is available
+try:
+    Device.ensure_pin_factory()
+except Exception:
+    Device.pin_factory = MockFactory()
 
 
 def create_controller() -> MotorController:
@@ -18,6 +26,7 @@ def create_controller() -> MotorController:
         step_pin=config.MOTOR_X_STEP_PIN,
         dir_pin=config.MOTOR_X_DIR_PIN,
         home_pin=config.MOTOR_X_HOME_PIN,
+        enable_pin=config.MOTOR_X_ENABLE_PIN,
         invert_direction=config.MOTOR_X_INVERT,
         max_position=config.MAX_X_POSITION,
         step_delay=config.STEP_DELAY,
@@ -28,6 +37,7 @@ def create_controller() -> MotorController:
         step_pin=config.MOTOR_Y_STEP_PIN,
         dir_pin=config.MOTOR_Y_DIR_PIN,
         home_pin=config.MOTOR_Y_HOME_PIN,
+        enable_pin=config.MOTOR_Y_ENABLE_PIN,
         invert_direction=config.MOTOR_Y_INVERT,
         max_position=config.MAX_Y_POSITION,
         step_delay=config.STEP_DELAY,
@@ -193,6 +203,34 @@ def stop(ctx: click.Context) -> None:
         sys.exit(1)
 
 
+@cli.command("motor-enable")
+@click.pass_context
+def motor_enable(ctx: click.Context) -> None:
+    """Enable motors (allows movement)."""
+    controller: MotorController = ctx.obj["controller"]
+    try:
+        controller.motor_x.enable()
+        controller.motor_y.enable()
+        click.echo("Motors enabled")
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+
+@cli.command("motor-disable")
+@click.pass_context
+def motor_disable(ctx: click.Context) -> None:
+    """Disable motors (saves power, allows manual movement)."""
+    controller: MotorController = ctx.obj["controller"]
+    try:
+        controller.motor_x.disable()
+        controller.motor_y.disable()
+        click.echo("Motors disabled - you can now move carriage manually")
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+
 @cli.command()
 @click.pass_context
 def interactive(ctx: click.Context) -> None:
@@ -222,6 +260,8 @@ Commands:
   magnet on         - Turn electromagnet on
   magnet off        - Turn electromagnet off
   magnet toggle     - Toggle electromagnet
+  motor enable      - Enable motors
+  motor disable     - Disable motors (manual movement allowed)
   status            - Show motor and magnet status
   stop              - Emergency stop
   exit              - Exit interactive mode
@@ -280,6 +320,16 @@ Commands:
 
             elif cmd == "magnet toggle":
                 controller.magnet_toggle()
+
+            elif cmd == "motor enable":
+                controller.motor_x.enable()
+                controller.motor_y.enable()
+                click.echo("Motors enabled")
+
+            elif cmd == "motor disable":
+                controller.motor_x.disable()
+                controller.motor_y.disable()
+                click.echo("Motors disabled - you can now move carriage manually")
 
             elif cmd == "stop":
                 controller.emergency_stop()

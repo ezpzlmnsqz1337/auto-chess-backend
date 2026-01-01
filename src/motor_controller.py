@@ -3,15 +3,19 @@ Stepper motor controller module.
 Provides control for XY axis movement with homing functionality.
 """
 
+import os
 import time
 from enum import Enum
 
 try:
-    from gpiozero import DigitalInputDevice, DigitalOutputDevice
+    from gpiozero import Button, DigitalOutputDevice
 
     GPIO_AVAILABLE = True
 except ImportError:
     GPIO_AVAILABLE = False
+
+# Disable debug prints during testing
+DEBUG_PRINTS = os.getenv("MOTOR_DEBUG", "1") == "1"
 
 
 class Axis(Enum):
@@ -46,14 +50,16 @@ class Electromagnet:
         if GPIO_AVAILABLE and self._device:
             self._device.on()
         self.is_on = True
-        print("Electromagnet: ON")
+        if DEBUG_PRINTS:
+            print("Electromagnet: ON")
 
     def off(self) -> None:
         """Turn the electromagnet off."""
         if GPIO_AVAILABLE and self._device:
             self._device.off()
         self.is_on = False
-        print("Electromagnet: OFF")
+        if DEBUG_PRINTS:
+            print("Electromagnet: OFF")
 
     def toggle(self) -> None:
         """Toggle the electromagnet state."""
@@ -75,6 +81,7 @@ class StepperMotor:
         step_pin: int,
         dir_pin: int,
         home_pin: int,
+        enable_pin: int | None = None,
         invert_direction: bool = False,
         max_position: int = 5000,
         step_delay: float = 0.002,
@@ -87,6 +94,7 @@ class StepperMotor:
             step_pin: GPIO pin for step signal
             dir_pin: GPIO pin for direction signal
             home_pin: GPIO pin for home/limit switch
+            enable_pin: GPIO pin for enable signal (LOW=enabled, HIGH=disabled)
             invert_direction: If True, inverts the direction of movement
             max_position: Maximum position in steps
             step_delay: Delay between steps in seconds
@@ -95,21 +103,29 @@ class StepperMotor:
         self.step_pin = step_pin
         self.dir_pin = dir_pin
         self.home_pin = home_pin
+        self.enable_pin = enable_pin
         self.invert_direction = invert_direction
         self.max_position = max_position
         self.step_delay = step_delay
         self.step_pulse_duration = step_pulse_duration
         self.current_position = 0
         self.is_homed = False
+        self.is_enabled = True  # Track enable state
 
         if GPIO_AVAILABLE:
             self._step_device = DigitalOutputDevice(step_pin)
             self._dir_device = DigitalOutputDevice(dir_pin)
-            self._home_device = DigitalInputDevice(home_pin, pull_up=True)
+            self._home_device = Button(home_pin, pull_up=True)
+            # Enable pin: LOW = enabled, HIGH = disabled
+            if enable_pin is not None:
+                self._enable_device = DigitalOutputDevice(enable_pin, initial_value=False)
+            else:
+                self._enable_device = None
         else:
             self._step_device = None
             self._dir_device = None
             self._home_device = None
+            self._enable_device = None
 
     def _set_direction(self, direction: int) -> None:
         """
@@ -123,6 +139,18 @@ class StepperMotor:
 
         if GPIO_AVAILABLE and self._dir_device:
             self._dir_device.value = direction
+
+    def enable(self) -> None:
+        """Enable the motor (LOW signal)."""
+        if GPIO_AVAILABLE and self._enable_device:
+            self._enable_device.off()  # LOW = enabled
+        self.is_enabled = True
+
+    def disable(self) -> None:
+        """Disable the motor (HIGH signal) - saves power and allows manual movement."""
+        if GPIO_AVAILABLE and self._enable_device:
+            self._enable_device.on()  # HIGH = disabled
+        self.is_enabled = False
 
     def _pulse_step(self) -> None:
         """Send a single step pulse to the motor."""
@@ -142,7 +170,11 @@ class StepperMotor:
 
         Raises:
             ValueError: If movement would exceed max position
+            RuntimeError: If motor is disabled
         """
+        if not self.is_enabled:
+            raise RuntimeError("Motor is disabled. Enable motor before moving.")
+
         if direction == 1 and self.current_position + steps > self.max_position:
             raise ValueError(
                 f"Movement would exceed max position. "
@@ -209,11 +241,25 @@ class StepperMotor:
             self.is_homed = True
             return
 
+        # Check if using mock pin factory
+        try:
+            from gpiozero import Device
+            from gpiozero.pins.mock import MockFactory
+
+            if isinstance(Device.pin_factory, MockFactory):
+                print("Mock GPIO detected. Simulating home at position 0.")
+                self.current_position = 0
+                self.is_homed = True
+                return
+        except ImportError:
+            pass
+
         original_step_delay = self.step_delay
         self.step_delay = home_step_delay
         self._set_direction(home_direction)
 
-        max_steps = self.max_position + 1000  # Allow some extra steps
+        # Safety: Don't home beyond the physical limits of the axis
+        max_steps = self.max_position
         steps_taken = 0
 
         try:
@@ -231,7 +277,10 @@ class StepperMotor:
         finally:
             self.step_delay = original_step_delay
 
-        raise RuntimeError(f"Homing failed: limit switch not triggered after {max_steps} steps")
+        raise RuntimeError(
+            f"Homing failed: limit switch not triggered after {max_steps} steps. "
+            f"This is a safety limit to prevent damage. Check endstop wiring and position."
+        )
 
     def get_position(self) -> int:
         """Get current position in steps."""
@@ -244,6 +293,7 @@ class StepperMotor:
             "max_position": self.max_position,
             "is_homed": self.is_homed,
             "direction_inverted": self.invert_direction,
+            "endstop_pressed": not self._home_device.is_pressed if GPIO_AVAILABLE else False,
         }
 
     def emergency_stop(self) -> None:
@@ -263,10 +313,14 @@ class StepperMotor:
         """
         Calculate step delay for trapezoidal acceleration profile.
 
+        Uses linear velocity ramping (constant acceleration) rather than
+        linear delay ramping. Since velocity = 1/delay, we interpolate
+        in velocity space then convert back to delay.
+
         The velocity profile has three phases:
-        1. Acceleration: linearly increase speed (decrease delay)
+        1. Acceleration: linearly increase speed (constant acceleration)
         2. Constant: maintain max speed
-        3. Deceleration: linearly decrease speed (increase delay)
+        3. Deceleration: linearly decrease speed (constant deceleration)
 
         Args:
             step_number: Current step number (0-indexed)
@@ -278,20 +332,26 @@ class StepperMotor:
         Returns:
             Step delay in seconds for this step
         """
+        # Convert delays to speeds (steps per second)
+        min_speed = 1.0 / max_delay  # Starting/ending speed
+        max_speed = 1.0 / min_delay  # Maximum speed
+
         # If move is too short for full acceleration, reduce ramp
         effective_accel_steps = min(accel_steps, total_steps // 2)
 
         if step_number < effective_accel_steps:
-            # Acceleration phase: interpolate from max_delay to min_delay
+            # Acceleration phase: linearly interpolate speed from min to max
             ratio = step_number / effective_accel_steps
-            return max_delay - (max_delay - min_delay) * ratio
+            current_speed = min_speed + (max_speed - min_speed) * ratio
+            return 1.0 / current_speed
         elif step_number >= total_steps - effective_accel_steps:
-            # Deceleration phase: interpolate from min_delay back to max_delay
+            # Deceleration phase: linearly interpolate speed from max to min
             steps_into_decel = step_number - (total_steps - effective_accel_steps)
             ratio = steps_into_decel / effective_accel_steps
-            return min_delay + (max_delay - min_delay) * ratio
+            current_speed = max_speed - (max_speed - min_speed) * ratio
+            return 1.0 / current_speed
         else:
-            # Constant speed phase: use minimum delay (max speed)
+            # Constant speed phase: use maximum speed (minimum delay)
             return min_delay
 
 
@@ -342,12 +402,15 @@ class MotorController:
             home_direction_y: Home direction for Y motor
             home_step_delay: Step delay during homing
         """
-        print("Starting homing sequence...")
-        print("Homing X axis...")
+        if DEBUG_PRINTS:
+            print("Starting homing sequence...")
+            print("Homing X axis...")
         self.motor_x.home(home_direction_x, home_step_delay)
-        print("Homing Y axis...")
+        if DEBUG_PRINTS:
+            print("Homing Y axis...")
         self.motor_y.home(home_direction_y, home_step_delay)
-        print("Homing complete!")
+        if DEBUG_PRINTS:
+            print("Homing complete!")
 
     def move_to(self, x: int, y: int) -> None:
         """
@@ -369,9 +432,11 @@ class MotorController:
         dx = x - x_current
         dy = y - y_current
 
-        print(f"Moving to X={x}, Y={y}")
+        if DEBUG_PRINTS:
+            print(f"Moving to X={x}, Y={y}")
         self._move_coordinated(dx, dy)
-        print("Reached target position")
+        if DEBUG_PRINTS:
+            print("Reached target position")
 
     def _move_coordinated(self, dx: int, dy: int) -> None:
         """
@@ -436,9 +501,13 @@ class MotorController:
                     self.motor_y.step_delay = delay
 
                 self.motor_x._pulse_step()
+                # Update X position manually since _pulse_step doesn't do it
+                self.motor_x.current_position += 1 if x_dir else -1
                 error -= abs_dy
                 if error < 0:
                     self.motor_y._pulse_step()
+                    # Update Y position manually
+                    self.motor_y.current_position += 1 if y_dir else -1
                     error += abs_dx
                 step_count += 1
         else:
@@ -458,9 +527,13 @@ class MotorController:
                     self.motor_y.step_delay = delay
 
                 self.motor_y._pulse_step()
+                # Update Y position manually since _pulse_step doesn't do it
+                self.motor_y.current_position += 1 if y_dir else -1
                 error -= abs_dx
                 if error < 0:
                     self.motor_x._pulse_step()
+                    # Update X position manually
+                    self.motor_x.current_position += 1 if x_dir else -1
                     error += abs_dy
                 step_count += 1
 
