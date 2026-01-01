@@ -232,6 +232,74 @@ def motor_disable(ctx: click.Context) -> None:
 
 
 @cli.command()
+@click.option(
+    "--pattern",
+    type=click.Choice(["square", "diagonals", "snake", "all"], case_sensitive=False),
+    default="all",
+    help="Pattern to execute (default: all)",
+)
+@click.option(
+    "--no-home",
+    is_flag=True,
+    help="Skip automatic homing (use if already homed)",
+)
+@click.pass_context
+def demo(ctx: click.Context, pattern: str, no_home: bool) -> None:
+    """Execute calibration demo patterns (square, diagonals, snake).
+
+    This command automatically homes the motors first (unless --no-home is used),
+    then executes the selected movement pattern for calibration and testing.
+    """
+    from demo_patterns import (
+        execute_pattern,
+        get_diagonal_patterns,
+        get_edge_square_pattern,
+        get_snake_pattern,
+    )
+
+    controller: MotorController = ctx.obj["controller"]
+
+    try:
+        # Auto-home unless explicitly skipped
+        if not no_home:
+            click.echo("Homing motors first...")
+            controller.home_all(
+                home_direction_x=config.HOME_DIRECTION_X,
+                home_direction_y=config.HOME_DIRECTION_Y,
+                home_step_delay=config.HOME_STEP_DELAY,
+            )
+            click.echo("✓ Homing complete\n")
+
+        # Execute requested pattern(s)
+        if pattern in ("square", "all"):
+            click.echo("Executing SQUARE pattern (board perimeter)...")
+            positions = get_edge_square_pattern()
+            execute_pattern(controller, positions)
+            click.echo()
+
+        if pattern in ("diagonals", "all"):
+            click.echo("Executing DIAGONALS pattern (4 major diagonals)...")
+            diagonals = get_diagonal_patterns()
+            for start, end, name in diagonals:
+                click.echo(f"  Diagonal: {name}")
+                execute_pattern(controller, [start, end], verbose=False)
+            click.echo("✓ All diagonals complete")
+            click.echo()
+
+        if pattern in ("snake", "all"):
+            click.echo("Executing SNAKE pattern (all 64 squares)...")
+            positions = get_snake_pattern()
+            execute_pattern(controller, positions)
+            click.echo()
+
+        click.echo("✓ Demo complete!")
+
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+
+@cli.command()
 @click.pass_context
 def interactive(ctx: click.Context) -> None:
     """Interactive control mode."""

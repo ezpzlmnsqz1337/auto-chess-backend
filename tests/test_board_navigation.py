@@ -5,7 +5,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 
 import config
-from board_navigation import square_to_steps
+from demo_patterns import get_diagonal_patterns, get_edge_square_pattern, get_snake_pattern
 from tests.test_utils import (
     capture_movement_path,
     create_test_controller,
@@ -24,14 +24,8 @@ def test_board_edge_square() -> None:
     # Create controller and home it
     controller = create_test_controller()
 
-    # Corners of the board
-    corners = [
-        square_to_steps(0, 0),  # a1 - bottom left
-        square_to_steps(0, 7),  # h1 - bottom right
-        square_to_steps(7, 7),  # h8 - top right
-        square_to_steps(7, 0),  # a8 - top left
-        square_to_steps(0, 0),  # back to a1
-    ]
+    # Get board edge pattern
+    corners = get_edge_square_pattern()
 
     # Capture actual movement path using motor controller
     positions, timestamps, speeds = capture_movement_path(controller, corners)
@@ -57,23 +51,10 @@ def test_all_diagonals() -> None:
     """Test moving along all four major diagonals using actual motor code."""
     Path("tests/output").mkdir(parents=True, exist_ok=True)
 
-    diagonals = [
-        # Diagonal 1: a1 to h8 (bottom-left to top-right)
-        (square_to_steps(0, 0), square_to_steps(7, 7)),
-        # Diagonal 2: h1 to a8 (bottom-right to top-left)
-        (square_to_steps(0, 7), square_to_steps(7, 0)),
-        # Diagonal 3: a8 to h1 (top-left to bottom-right)
-        (square_to_steps(7, 0), square_to_steps(0, 7)),
-        # Diagonal 4: h8 to a1 (top-right to bottom-left)
-        (square_to_steps(7, 7), square_to_steps(0, 0)),
-    ]
-
-    diagonal_names = [
-        "Diagonal 1: a1 → h8 (↗)",
-        "Diagonal 2: h1 → a8 (↖)",
-        "Diagonal 3: a8 → h1 (↘)",
-        "Diagonal 4: h8 → a1 (↙)",
-    ]
+    # Get diagonal patterns
+    diagonals_data = get_diagonal_patterns()
+    diagonals = [(start, end) for start, end, _ in diagonals_data]
+    diagonal_names = [name for _, _, name in diagonals_data]
 
     # Reuse single controller for all diagonals
     controller = create_test_controller()
@@ -198,17 +179,8 @@ def test_snake_pattern_all_squares() -> None:
     # Create controller
     controller = create_test_controller()
 
-    # Build target positions for snake pattern
-    target_positions = []
-
-    # Snake pattern: left-to-right on even rows, right-to-left on odd rows
-    for row in range(config.BOARD_ROWS):
-        # Even row: go left to right (0 to 7), odd row: go right to left (7 to 0)
-        cols = range(config.BOARD_COLS) if row % 2 == 0 else range(config.BOARD_COLS - 1, -1, -1)
-
-        for col in cols:
-            x, y = square_to_steps(row, col)
-            target_positions.append((x, y))
+    # Get snake pattern
+    target_positions = get_snake_pattern()
 
     # Capture actual movement path
     positions, timestamps, speeds = capture_movement_path(controller, target_positions)
