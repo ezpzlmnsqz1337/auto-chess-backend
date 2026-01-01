@@ -26,8 +26,10 @@ This project uses a Raspberry Pi Zero 2W to control two NEMA stepper motors (X a
 |----------|----------|
 | Motor X - Step | GPIO 17 |
 | Motor X - Direction | GPIO 18 |
+| Motor X - Enable | GPIO 5 |
 | Motor Y - Step | GPIO 27 |
 | Motor Y - Direction | GPIO 22 |
+| Motor Y - Enable | GPIO 6 |
 | Motor X - Home Switch | GPIO 23 |
 | Motor Y - Home Switch | GPIO 24 |
 | Electromagnet Control | GPIO 25 |
@@ -76,7 +78,7 @@ TMC2208 → Raspberry Pi / Motor
   GND  → GND
   STEP → GPIO (17 for X, 27 for Y)
   DIR  → GPIO (18 for X, 22 for Y)
-  EN   → GND (always enabled) or GPIO for enable/disable
+  EN   → GPIO (5 for X, 6 for Y) - LOW=enabled, HIGH=disabled
   VM   → Motor power supply (12-24V)
   GND  → Motor power GND
   A1, A2, B1, B2 → Stepper motor coils
@@ -86,18 +88,17 @@ TMC2208 → Raspberry Pi / Motor
 
 For **quiet operation with 16× microstepping** (recommended):
 
-| MS1 | MS2 | Microstepping | Steps/Revolution (1.8° motor) |
-|-----|-----|---------------|-------------------------------|
-| GND | VDD | 16            | 3200                          |
+| MS1 | MS2 | Microstepping | Interpolation | Steps/Revolution (1.8° motor) |
+|-----|-----|---------------|---------------|-------------------------------|
+| VDD | VDD | 1/16          | 1/256         | 3200                          |
 
-Other microstepping options:
+Other microstepping options (all with 1/256 interpolation in stealthChop2):
 
 | MS1 | MS2 | Microstepping | Steps/Revolution |
 |-----|-----|---------------|------------------|
-| GND | GND | 8             | 1600             |
-| VDD | GND | 4             | 800              |
-| VDD | VDD | 2             | 400              |
-| Open| Open| 1/2 (default) | 400              |
+| GND | GND | 1/8           | 1600             |
+| GND | VDD | 1/2           | 400              |
+| VDD | GND | 1/4           | 800              |
 
 **StealthChop (Silent Operation)**:
 - **Enabled by default** in standalone mode
@@ -108,7 +109,7 @@ Other microstepping options:
 
 **Physical Setup**:
 1. Add small heatsink to TMC2208 chip
-2. Set MS1=GND, MS2=VDD for 16× microstepping (solder jumpers or via pins)
+2. Set MS1=VDD, MS2=VDD for 16× microstepping (solder jumpers or via pins)
 3. Adjust motor current via VREF potentiometer:
    - VREF = Motor_Current × 0.5 (for standalone mode)
    - Example: For 1A motor, set VREF to 0.5V
@@ -209,6 +210,10 @@ controller.move_to(x, y)
 python main.py magnet-on       # Turn magnet on
 python main.py magnet-off      # Turn magnet off
 python main.py magnet-toggle   # Toggle magnet state
+
+# Motor control
+python main.py motor-enable    # Enable motors (allows movement)
+python main.py motor-disable   # Disable motors (saves power, manual movement allowed)
 
 # Get current position
 python main.py position

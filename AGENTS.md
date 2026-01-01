@@ -108,6 +108,16 @@ Or create an alias in your shell:
 alias lint='uv run ruff format . && uv run ruff check --fix . && uv run mypy . && pytest tests/'
 ```
 
+## Committing Changes
+If committing changes, ensure that:
+- code quality checks pass,
+- tests pass successfully,
+- update docs, README.md or AGENTS.md if necessary,
+- commit using conventional commit messages (e.g., `feat: add new motor control feature`),
+- make multiple smaller commits if changes are large and unrelated.
+- always ask before committing and ask the user to confirm!
+- do not push
+
 ## Design Decisions
 
 ### Why Python?
