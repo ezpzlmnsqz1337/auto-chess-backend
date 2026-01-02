@@ -4,7 +4,7 @@ Chess board navigation utilities.
 Converts chess board coordinates (row, col) to motor step positions.
 """
 
-import config
+from src import config
 
 
 def square_to_steps(row: int, col: int) -> tuple[int, int]:

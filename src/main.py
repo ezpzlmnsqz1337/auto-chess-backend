@@ -5,6 +5,7 @@ Controls movement of electromagnet under a chess board.
 """
 
 import sys
+import time
 
 import click
 from gpiozero import Device
@@ -263,7 +264,7 @@ def reed_scan(continuous: bool, rate: int) -> None:
                         click.echo(change)
 
                 previous_state = current_state
-                click.pause(scan_interval)
+                time.sleep(scan_interval)
         else:
             # Single scan
             reed.scan_with_debounce()
@@ -324,7 +325,7 @@ def reed_test(square: str) -> None:
             state = reed.read_square(row, col)
             symbol = "🟢" if state else "⚫"
             click.echo(f"{symbol} {square}: {'OCCUPIED' if state else 'EMPTY'}")
-            click.pause(0.2)
+            time.sleep(0.2)
 
     except KeyboardInterrupt:
         click.echo("\n\n⏹️  Test stopped")

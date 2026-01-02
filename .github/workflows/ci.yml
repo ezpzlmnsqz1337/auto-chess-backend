@@ -33,8 +33,7 @@ jobs:
       run: uv run ruff check .
     
     - name: Run type checker
-      run: uv run mypy . || true
-      # Note: mypy currently has module naming issues, so we allow it to fail
+      run: uv run mypy src/ tests/
     
     - name: Run tests
       run: uv run pytest tests/ -v --tb=short

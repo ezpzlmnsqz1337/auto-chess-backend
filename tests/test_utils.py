@@ -8,8 +8,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.collections import LineCollection
 
-import config
-from motor import MotorController, StepperMotor
+from src import config
+from src.motor import MotorController, StepperMotor
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
