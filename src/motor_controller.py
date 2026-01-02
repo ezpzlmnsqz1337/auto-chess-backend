@@ -442,8 +442,8 @@ class MotorController:
         """
         Move both motors simultaneously using Bresenham's line algorithm.
 
-        This ensures diagonal movements follow a straight line and both
-        motors finish at the same time. Includes optional acceleration.
+        This ensures diagonal movements follow a straight line. Each motor
+        uses its own acceleration profile based on its individual step count.
 
         Args:
             dx: Steps to move on X axis (signed)
@@ -474,74 +474,98 @@ class MotorController:
         self.motor_x._set_direction(x_dir)
         self.motor_y._set_direction(y_dir)
 
-        # Total steps is the dominant axis (Bresenham takes max(dx, dy) steps)
-        total_steps = max(abs_dx, abs_dy)
-
         # Save original step delays
         original_x_delay = self.motor_x.step_delay
         original_y_delay = self.motor_y.step_delay
 
-        # Bresenham's line algorithm with acceleration
-        step_count = 0
+        # Diagonal speed optimization: when both axes move significantly,
+        # reduce delays since motors alternate efficiently in Bresenham
+        is_diagonal = abs_dx > 0 and abs_dy > 0
+        diagonal_speed_boost = 0.7 if is_diagonal else 1.0  # 30% faster on diagonals
 
+        # Track individual step counts for each motor's acceleration profile
+        x_step_count = 0
+        y_step_count = 0
+
+        # Bresenham's line algorithm with per-motor acceleration
         if abs_dx > abs_dy:
             # X-dominant movement
             error = abs_dx / 2
             for _ in range(abs_dx):
-                # Calculate step delay with acceleration if enabled
+                # Calculate X motor's delay based on its own step count
                 if self.enable_acceleration:
-                    delay = StepperMotor.calculate_step_delay(
-                        step_count,
-                        total_steps,
+                    x_delay = StepperMotor.calculate_step_delay(
+                        x_step_count,
+                        abs_dx,
                         self.min_step_delay,
                         self.max_step_delay,
                         self.accel_steps,
                     )
-                    self.motor_x.step_delay = delay
-                    self.motor_y.step_delay = delay
+                    self.motor_x.step_delay = x_delay * diagonal_speed_boost
 
                 self.motor_x._pulse_step()
-                # Update X position manually since _pulse_step doesn't do it
                 self.motor_x.current_position += 1 if x_dir else -1
+                x_step_count += 1
+
                 error -= abs_dy
                 if error < 0:
+                    # Calculate Y motor's delay based on its own step count
+                    if self.enable_acceleration:
+                        y_delay = StepperMotor.calculate_step_delay(
+                            y_step_count,
+                            abs_dy,
+                            self.min_step_delay,
+                            self.max_step_delay,
+                            self.accel_steps,
+                        )
+                        self.motor_y.step_delay = y_delay * diagonal_speed_boost
+
                     self.motor_y._pulse_step()
-                    # Update Y position manually
                     self.motor_y.current_position += 1 if y_dir else -1
+                    y_step_count += 1
                     error += abs_dx
-                step_count += 1
         else:
             # Y-dominant movement
             error = abs_dy / 2
             for _ in range(abs_dy):
-                # Calculate step delay with acceleration if enabled
+                # Calculate Y motor's delay based on its own step count
                 if self.enable_acceleration:
-                    delay = StepperMotor.calculate_step_delay(
-                        step_count,
-                        total_steps,
+                    y_delay = StepperMotor.calculate_step_delay(
+                        y_step_count,
+                        abs_dy,
                         self.min_step_delay,
                         self.max_step_delay,
                         self.accel_steps,
                     )
-                    self.motor_x.step_delay = delay
-                    self.motor_y.step_delay = delay
+                    self.motor_y.step_delay = y_delay * diagonal_speed_boost
 
                 self.motor_y._pulse_step()
-                # Update Y position manually since _pulse_step doesn't do it
                 self.motor_y.current_position += 1 if y_dir else -1
+                y_step_count += 1
+
                 error -= abs_dx
                 if error < 0:
+                    # Calculate X motor's delay based on its own step count
+                    if self.enable_acceleration:
+                        x_delay = StepperMotor.calculate_step_delay(
+                            x_step_count,
+                            abs_dx,
+                            self.min_step_delay,
+                            self.max_step_delay,
+                            self.accel_steps,
+                        )
+                        self.motor_x.step_delay = x_delay * diagonal_speed_boost
+
                     self.motor_x._pulse_step()
-                    # Update X position manually
                     self.motor_x.current_position += 1 if x_dir else -1
+                    x_step_count += 1
                     error += abs_dy
-                step_count += 1
 
         # Restore original step delays
         self.motor_x.step_delay = original_x_delay
         self.motor_y.step_delay = original_y_delay
 
-        # Update positions (Bresenham ensures we took exactly dx and dy steps)
+        # Ensure positions are correct
         self.motor_x.current_position = target_x
         self.motor_y.current_position = target_y
 

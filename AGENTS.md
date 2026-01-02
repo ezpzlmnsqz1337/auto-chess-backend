@@ -162,6 +162,8 @@ Uses **Bresenham's line algorithm** to move both motors simultaneously:
 - Ensures straight diagonal paths (not L-shaped)
 - Both axes complete at the same time
 - Proportional step distribution across dominant axis
+- **Per-motor acceleration**: Each motor calculates its own acceleration profile based on individual step count
+- **Diagonal speed boost**: 30% faster when both axes move (0.7 delay multiplier)
 
 ### Acceleration Profile
 
@@ -196,6 +198,10 @@ Velocity
 - `MIN_STEP_DELAY` - Max speed (must be >0.0005s for StealthChop)
 - `MAX_STEP_DELAY` - Start/end speed
 - `ACCELERATION_STEPS` - Ramp length (50 recommended)
+
+**Per-motor implementation**: Each motor in coordinated moves calculates its acceleration independently based on its own step count, allowing both motors to accelerate smoothly even when moving different distances.
+
+**Diagonal optimization**: When both axes move, a 0.7 multiplier is applied to step delays (30% speed increase) since Bresenham efficiently alternates motor steps.
 
 **For short moves**: If total steps < 2× `ACCELERATION_STEPS`, ramp is automatically reduced to fit.
 

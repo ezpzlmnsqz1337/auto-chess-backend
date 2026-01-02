@@ -332,6 +332,10 @@ controller.emergency_stop()
 - **Homing**: Automatic homing to limit switches
 - **Position Tracking**: Maintains current position state
 - **Absolute & Relative Movement**: Move to exact positions or by step increments
+- **Coordinated Motion**: Bresenham's algorithm ensures straight diagonal paths
+- **Per-Motor Acceleration**: Each motor uses independent acceleration profiles for optimal speed
+- **Diagonal Speed Optimization**: 30% faster diagonal movements while maintaining straight paths
+- **Trapezoidal Velocity Profiles**: Smooth acceleration and deceleration
 - **Direction Control**: Easily invert motor directions via configuration
 - **Safety Limits**: Prevents movement beyond max positions
 - **Error Handling**: Validates moves and provides detailed error messages
