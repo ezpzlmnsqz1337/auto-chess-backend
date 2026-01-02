@@ -75,9 +75,7 @@ def test_board_edge_square() -> None:
         bbox={"boxstyle": "round", "facecolor": "wheat", "alpha": 0.8},
     )
 
-    fig.suptitle(
-        "Board Edge Square Test - Path & Speed Analysis", fontsize=14, fontweight="bold"
-    )
+    fig.suptitle("Board Edge Square Test - Path & Speed Analysis", fontsize=14, fontweight="bold")
     plt.tight_layout()
     plt.savefig(output_dir / "edge_square.png", dpi=100, bbox_inches="tight")
     plt.close(fig)
@@ -132,19 +130,25 @@ def test_all_diagonals() -> None:
         ax.plot(x_mm[0], y_mm[0], "go", markersize=10, label="Start", zorder=3)
         ax.plot(x_mm[-2], y_mm[-2], "ro", markersize=10, label="End", zorder=3)
 
-        # Compact axes setup
-        board_width_mm = config.BOARD_COLS * config.SQUARE_SIZE_MM
-        board_height_mm = config.BOARD_ROWS * config.SQUARE_SIZE_MM
+        # Compact axes setup - use extended board dimensions in motor coordinates
         margin = config.SQUARE_SIZE_MM * 0.5
+        # Motor coordinate limits: left capture at motor_offset + left_capture_start, right at motor_offset + right_capture_end
+        x_min = config.LEFT_CAPTURE_START_MM + config.MOTOR_X_OFFSET_MM - margin
+        x_max = (
+            config.RIGHT_CAPTURE_START_MM
+            + config.CAPTURE_COLS * config.SQUARE_SIZE_MM
+            + config.MOTOR_X_OFFSET_MM
+            + margin
+        )
 
-        ax.set_xlabel("X (mm)", fontsize=10)
+        ax.set_xlabel("X (mm - motor coordinates)", fontsize=10)
         ax.set_ylabel("Y (mm)", fontsize=10)
         ax.set_title(f"{name} - Path", fontsize=11, fontweight="bold")
         ax.grid(True, alpha=0.3)
         ax.legend(fontsize=8)
         ax.set_aspect("equal")
-        ax.set_xlim(-margin, board_width_mm + margin)
-        ax.set_ylim(-margin, board_height_mm + margin)
+        ax.set_xlim(x_min, x_max)
+        ax.set_ylim(-margin, config.BOARD_ROWS * config.SQUARE_SIZE_MM + margin)
 
         # Add position count
         ax.text(
@@ -193,9 +197,7 @@ def test_all_diagonals() -> None:
             bbox={"boxstyle": "round", "facecolor": "wheat", "alpha": 0.8},
         )
 
-    fig.suptitle(
-        "All Major Diagonals Test - Path & Speed Analysis", fontsize=16, fontweight="bold"
-    )
+    fig.suptitle("All Major Diagonals Test - Path & Speed Analysis", fontsize=16, fontweight="bold")
     plt.tight_layout()
     plt.savefig(output_dir / "all_diagonals.png", dpi=100, bbox_inches="tight")
     plt.close(fig)

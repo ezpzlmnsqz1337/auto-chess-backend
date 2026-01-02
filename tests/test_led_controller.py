@@ -313,9 +313,14 @@ def _draw_led_board(
         title: Plot title
         filename: Output filename
     """
-    fig, ax = plt.subplots(figsize=(8, 8))
+    from tests.test_utils import draw_chess_board_grid
 
-    # Draw board squares
+    fig, ax = plt.subplots(figsize=(10, 8))
+
+    # Draw board grid using unified function (board coordinate space with capture areas)
+    draw_chess_board_grid(ax, show_capture_areas=True, use_motor_coordinates=False)
+
+    # Overlay LED colors on the board squares
     for row in range(8):
         for col in range(8):
             square = Square(row, col)
@@ -324,9 +329,9 @@ def _draw_led_board(
             # Normalize RGB to 0-1 for matplotlib
             rgb_normalized = (color[0] / 255, color[1] / 255, color[2] / 255)
 
-            # Add square
+            # Add colored square overlay (slightly transparent to show grid)
             rect = patches.Rectangle(
-                (col, row), 1, 1, linewidth=1, edgecolor="gray", facecolor=rgb_normalized
+                (col, row), 1, 1, linewidth=0, facecolor=rgb_normalized, alpha=0.8
             )
             ax.add_patch(rect)
 
@@ -340,16 +345,15 @@ def _draw_led_board(
                 va="center",
                 fontsize=8,
                 color="white" if sum(color) < 384 else "black",
+                weight="bold",
             )
 
-    # Set board properties
-    ax.set_xlim(0, 8)
-    ax.set_ylim(0, 8)
+    # Set board properties to include capture areas
+    ax.set_xlim(-2.5, 10.5)
+    ax.set_ylim(-1, 8.5)
     ax.set_aspect("equal")
-    ax.set_xticks(range(9))
-    ax.set_yticks(range(9))
-    ax.set_xticklabels(["", "a", "b", "c", "d", "e", "f", "g", "h"])
-    ax.set_yticklabels(["", "1", "2", "3", "4", "5", "6", "7", "8"])
+    ax.set_xticks([])
+    ax.set_yticks([])
     ax.set_title(title, fontsize=14, pad=10)
     ax.grid(False)
 
@@ -451,4 +455,294 @@ def test_visualize_stalemate() -> None:
         controller,
         "LED Pattern: Stalemate",
         "led_stalemate.png",
+    )
+
+
+def test_mode_selection_no_pieces() -> None:
+    """Test mode selection with no pieces placed (AvA mode)."""
+    controller = WS2812BController(use_mock=True)
+
+    placed_squares: list[Square] = []
+    controller.show_mode_selection(placed_squares)
+
+    # Verify button colors
+    a1_idx = controller.square_to_led_index(Square(0, 0))
+    b1_idx = controller.square_to_led_index(Square(0, 1))
+    h1_idx = controller.square_to_led_index(Square(0, 7))
+
+    assert controller.strip.pixels[a1_idx] == (0, 0, 200), "a1 should be blue"
+    assert controller.strip.pixels[b1_idx] == (0, 150, 200), "b1 should be light blue"
+    assert controller.strip.pixels[h1_idx] == (0, 200, 0), "h1 should be green"
+
+    # Verify some text squares are white (AvA text should be displayed)
+    # At least some squares should be lit with white text
+    white_count = sum(1 for i in range(64) if controller.strip.pixels[i] == (200, 200, 200))
+    assert white_count > 0, "Should have white text squares for AvA"
+
+
+def test_mode_selection_one_piece() -> None:
+    """Test mode selection with a1 placed (PvA mode)."""
+    controller = WS2812BController(use_mock=True)
+
+    placed_squares = [Square(0, 0)]  # a1 placed
+    controller.show_mode_selection(placed_squares)
+
+    # Verify button colors
+    a1_idx = controller.square_to_led_index(Square(0, 0))
+    b1_idx = controller.square_to_led_index(Square(0, 1))
+    h1_idx = controller.square_to_led_index(Square(0, 7))
+
+    assert controller.strip.pixels[a1_idx] == (200, 200, 200), "a1 should be white (selected)"
+    assert controller.strip.pixels[b1_idx] == (0, 150, 200), "b1 should be light blue"
+    assert controller.strip.pixels[h1_idx] == (0, 200, 0), "h1 should be green"
+
+    # Verify some text squares are white (PvA text should be displayed)
+    white_count = sum(1 for i in range(64) if controller.strip.pixels[i] == (200, 200, 200))
+    assert white_count > 0, "Should have white text squares for PvA"
+
+
+def test_mode_selection_two_pieces() -> None:
+    """Test mode selection with a1 and b1 placed (PvP mode)."""
+    controller = WS2812BController(use_mock=True)
+
+    placed_squares = [Square(0, 0), Square(0, 1)]  # a1 and b1 placed
+    controller.show_mode_selection(placed_squares)
+
+    # Verify button colors
+    a1_idx = controller.square_to_led_index(Square(0, 0))
+    b1_idx = controller.square_to_led_index(Square(0, 1))
+    h1_idx = controller.square_to_led_index(Square(0, 7))
+
+    assert controller.strip.pixels[a1_idx] == (200, 200, 200), "a1 should be white (selected)"
+    assert controller.strip.pixels[b1_idx] == (200, 200, 200), "b1 should be white (selected)"
+    assert controller.strip.pixels[h1_idx] == (0, 200, 0), "h1 should be green"
+
+    # Verify some text squares are white (PvP text should be displayed)
+    white_count = sum(1 for i in range(64) if controller.strip.pixels[i] == (200, 200, 200))
+    assert white_count > 0, "Should have white text squares for PvP"
+
+
+def test_waiting_for_pieces() -> None:
+    """Test waiting for pieces to be placed."""
+    controller = WS2812BController(use_mock=True)
+
+    # Define starting position squares
+    correct_squares = [
+        # White pieces (rows 0-1)
+        Square(0, 0),
+        Square(0, 1),
+        Square(0, 2),
+        Square(1, 0),
+        Square(1, 1),
+        # Black pieces (rows 6-7)
+        Square(6, 0),
+        Square(6, 1),
+        Square(7, 0),
+        Square(7, 1),
+        Square(7, 2),
+    ]
+
+    # Some pieces already placed
+    placed_squares = [
+        Square(0, 0),  # Correctly placed
+        Square(1, 0),  # Correctly placed
+        Square(7, 0),  # Correctly placed
+    ]
+
+    controller.show_waiting_for_pieces(placed_squares, correct_squares)
+
+    # Verify placed pieces are green
+    for square in placed_squares:
+        led_idx = controller.square_to_led_index(square)
+        color = controller.strip.pixels[led_idx]
+        assert color == (0, 200, 0), f"Expected green at placed {square}"
+
+    # Verify missing pieces show RED indicators
+    missing = [sq for sq in correct_squares if sq not in placed_squares]
+    for square in missing:
+        led_idx = controller.square_to_led_index(square)
+        color = controller.strip.pixels[led_idx]
+        assert color == (200, 0, 0), f"Expected RED indicator at {square}"
+
+
+def test_piece_placed_feedback() -> None:
+    """Test piece placement feedback (correct vs incorrect)."""
+    controller = WS2812BController(use_mock=True)
+
+    # Test correct placement
+    square = Square(0, 0)
+    controller.show_piece_placed_feedback(square, is_correct=True)
+    led_idx = controller.square_to_led_index(square)
+    assert controller.strip.pixels[led_idx] == (0, 200, 0)  # Bright green
+
+    # Test incorrect placement
+    controller.clear_all()
+    square = Square(3, 3)
+    controller.show_piece_placed_feedback(square, is_correct=False)
+    led_idx = controller.square_to_led_index(square)
+    assert controller.strip.pixels[led_idx] == (200, 0, 0)  # Red
+
+
+def test_visualize_mode_selection_no_pieces() -> None:
+    """Visualize mode selection with no pieces (AvA)."""
+    controller = WS2812BController(use_mock=True)
+
+    placed_squares: list[Square] = []
+    controller.show_mode_selection(placed_squares)
+
+    _draw_led_board(
+        controller,
+        "Mode Selection: No Pieces (a1=Blue, b1=Light Blue, h1=Green, Text=AvA)",
+        "led_mode_no_pieces.png",
+    )
+
+
+def test_visualize_mode_selection_one_piece() -> None:
+    """Visualize mode selection with a1 placed (PvA)."""
+    controller = WS2812BController(use_mock=True)
+
+    placed_squares = [Square(0, 0)]  # a1 placed
+    controller.show_mode_selection(placed_squares)
+
+    _draw_led_board(
+        controller,
+        "Mode Selection: a1 Placed (a1=White, b1=Light Blue, h1=Green, Text=PvA)",
+        "led_mode_one_piece.png",
+    )
+
+
+def test_visualize_mode_selection_two_pieces() -> None:
+    """Visualize mode selection with a1,b1 placed (PvP)."""
+    controller = WS2812BController(use_mock=True)
+
+    placed_squares = [Square(0, 0), Square(0, 1)]  # a1 and b1 placed
+    controller.show_mode_selection(placed_squares)
+
+    _draw_led_board(
+        controller,
+        "Mode Selection: a1,b1 Placed (a1=White, b1=White, h1=Green, Text=PvP)",
+        "led_mode_two_pieces.png",
+    )
+
+
+def test_visualize_waiting_for_pieces_empty() -> None:
+    """Visualize board waiting for all pieces to be placed."""
+    controller = WS2812BController(use_mock=True)
+
+    # All starting position squares
+    correct_squares = []
+    # White pieces (rows 0-1)
+    for col in range(8):
+        correct_squares.append(Square(0, col))  # Back rank
+        correct_squares.append(Square(1, col))  # Pawns
+    # Black pieces (rows 6-7)
+    for col in range(8):
+        correct_squares.append(Square(6, col))  # Pawns
+        correct_squares.append(Square(7, col))  # Back rank
+
+    placed_squares: list[Square] = []  # No pieces placed yet
+
+    controller.show_waiting_for_pieces(placed_squares, correct_squares)
+
+    _draw_led_board(
+        controller,
+        "Waiting for Pieces: Empty Board (RED=Need Piece)",
+        "led_waiting_empty.png",
+    )
+
+
+def test_visualize_waiting_for_pieces_partial() -> None:
+    """Visualize board with some pieces placed correctly."""
+    controller = WS2812BController(use_mock=True)
+
+    # All starting position squares
+    correct_squares = []
+    for col in range(8):
+        correct_squares.append(Square(0, col))  # White back rank
+        correct_squares.append(Square(1, col))  # White pawns
+        correct_squares.append(Square(6, col))  # Black pawns
+        correct_squares.append(Square(7, col))  # Black back rank
+
+    # Half of pieces placed
+    placed_squares = [
+        # White back rank placed
+        Square(0, 0),
+        Square(0, 1),
+        Square(0, 2),
+        Square(0, 3),
+        Square(0, 4),
+        Square(0, 5),
+        Square(0, 6),
+        Square(0, 7),
+        # Some white pawns
+        Square(1, 0),
+        Square(1, 1),
+        Square(1, 2),
+        # Some black pieces
+        Square(7, 0),
+        Square(7, 7),
+        Square(6, 3),
+        Square(6, 4),
+    ]
+
+    controller.show_waiting_for_pieces(placed_squares, correct_squares)
+
+    _draw_led_board(
+        controller,
+        "Waiting for Pieces: Partial Setup (GREEN=Placed, RED=Still Needed)",
+        "led_waiting_partial.png",
+    )
+
+
+def test_visualize_waiting_for_pieces_complete() -> None:
+    """Visualize board with all pieces correctly placed."""
+    controller = WS2812BController(use_mock=True)
+
+    # All starting position squares
+    correct_squares = []
+    for col in range(8):
+        correct_squares.append(Square(0, col))
+        correct_squares.append(Square(1, col))
+        correct_squares.append(Square(6, col))
+        correct_squares.append(Square(7, col))
+
+    # All pieces placed
+    placed_squares = correct_squares.copy()
+
+    controller.show_waiting_for_pieces(placed_squares, correct_squares)
+
+    _draw_led_board(
+        controller,
+        "Waiting for Pieces: Complete Setup (All Green - Ready to Play!)",
+        "led_waiting_complete.png",
+    )
+
+
+def test_visualize_piece_placed_correct() -> None:
+    """Visualize feedback when piece placed correctly."""
+    controller = WS2812BController(use_mock=True)
+
+    # Show a piece being placed correctly on a1
+    square = Square(0, 0)
+    controller.show_piece_placed_feedback(square, is_correct=True)
+
+    _draw_led_board(
+        controller,
+        "Piece Placement Feedback: Correct (Bright Green Flash)",
+        "led_piece_placed_correct.png",
+    )
+
+
+def test_visualize_piece_placed_incorrect() -> None:
+    """Visualize feedback when piece placed incorrectly."""
+    controller = WS2812BController(use_mock=True)
+
+    # Show a piece being placed incorrectly on d4
+    square = Square(3, 3)
+    controller.show_piece_placed_feedback(square, is_correct=False)
+
+    _draw_led_board(
+        controller,
+        "Piece Placement Feedback: Incorrect (Red Flash)",
+        "led_piece_placed_incorrect.png",
     )

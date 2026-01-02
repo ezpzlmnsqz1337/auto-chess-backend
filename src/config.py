@@ -31,6 +31,31 @@ SQUARE_SIZE_MM = 31.0  # Standard tournament size is 50-60mm, adjust to your boa
 BOARD_ROWS = 8
 BOARD_COLS = 8
 
+# Capture area configuration
+# Each side has a 2x8 area for captured pieces, offset from main board
+CAPTURE_COLS = 2
+CAPTURE_ROWS = 8
+CAPTURE_OFFSET_MM = 24.0  # Gap between main board and capture area
+
+# Total board dimensions including capture areas
+TOTAL_COLS = CAPTURE_COLS + BOARD_COLS + CAPTURE_COLS  # 2 + 8 + 2 = 12
+TOTAL_ROWS = BOARD_ROWS  # 8
+
+# Calculate positions (in millimeters from board origin at a1)
+LEFT_CAPTURE_START_MM = -(CAPTURE_COLS * SQUARE_SIZE_MM + CAPTURE_OFFSET_MM)
+MAIN_BOARD_START_MM = 0.0
+RIGHT_CAPTURE_START_MM = BOARD_COLS * SQUARE_SIZE_MM + CAPTURE_OFFSET_MM
+
+# Total width and height in millimeters
+TOTAL_WIDTH_MM = (
+    CAPTURE_COLS * SQUARE_SIZE_MM  # Left capture area
+    + CAPTURE_OFFSET_MM  # Left gap
+    + BOARD_COLS * SQUARE_SIZE_MM  # Main board
+    + CAPTURE_OFFSET_MM  # Right gap
+    + CAPTURE_COLS * SQUARE_SIZE_MM  # Right capture area
+)
+TOTAL_HEIGHT_MM = BOARD_ROWS * SQUARE_SIZE_MM
+
 # Steps per millimeter (calibrate based on your mechanical setup)
 # GT2 belt: With 16x microstepping, 200 steps/rev motor, and 20-tooth pulley (40mm/rev):
 # Steps per mm = (200 * 16) / 40 = 80 steps/mm
@@ -38,15 +63,32 @@ BOARD_COLS = 8
 # Steps per mm = (200 * 16) / 20 = 160 steps/mm
 STEPS_PER_MM = 80.0  # GT2 belt with 20-tooth pulley
 
+# Motor coordinate offset
+# Motor homes at far left edge (before left capture area)
+# This offset converts board coordinates (where a1=0) to motor coordinates (where home=0)
+# Motor position 0 = homed position at far left
+# Motor position MOTOR_X_OFFSET_STEPS = board coordinate x=0 (a1)
+MOTOR_X_OFFSET_MM = abs(LEFT_CAPTURE_START_MM) + 10.0  # Capture area width + gap + margin
+MOTOR_X_OFFSET_STEPS = int(MOTOR_X_OFFSET_MM * STEPS_PER_MM)
+
 # Calculate board dimensions in steps
 BOARD_WIDTH_STEPS = int(BOARD_COLS * SQUARE_SIZE_MM * STEPS_PER_MM)
 BOARD_HEIGHT_STEPS = int(BOARD_ROWS * SQUARE_SIZE_MM * STEPS_PER_MM)
 
+# Calculate extended dimensions in steps (including capture areas)
+LEFT_CAPTURE_START_STEPS = int(LEFT_CAPTURE_START_MM * STEPS_PER_MM)
+RIGHT_CAPTURE_END_STEPS = int(
+    (RIGHT_CAPTURE_START_MM + CAPTURE_COLS * SQUARE_SIZE_MM) * STEPS_PER_MM
+)
+TOTAL_WIDTH_STEPS = int(TOTAL_WIDTH_MM * STEPS_PER_MM)
+TOTAL_HEIGHT_STEPS = int(TOTAL_HEIGHT_MM * STEPS_PER_MM)
+
 # Maximum positions (in steps)
 # These define the limits of movement after homing
-# Should be larger than board dimensions to allow margin
-MAX_X_POSITION = max(5000, BOARD_WIDTH_STEPS + 1000)  # Board width + margin
-MAX_Y_POSITION = max(5000, BOARD_HEIGHT_STEPS + 1000)  # Board height + margin
+# X-axis must accommodate left capture area (negative) and right capture area
+# Homing position is at left edge, before left capture area
+MAX_X_POSITION = RIGHT_CAPTURE_END_STEPS + 1000  # Right capture area + margin
+MAX_Y_POSITION = TOTAL_HEIGHT_STEPS + 1000  # Board height + margin
 
 # Step timing
 # Pulse duration in seconds
@@ -132,14 +174,17 @@ REED_SWITCH_DEBOUNCE_TIME = 0.1  # 100ms
 # Maximum time to wait for a move to complete (piece picked up then placed)
 MOVE_DETECTION_TIMEOUT = 30.0  # 30 seconds
 # WS2812B LED Configuration
-# 64 individually addressable RGB LEDs (one per square) for visual feedback
+# 96 individually addressable RGB LEDs for visual feedback
+# - LEDs 0-15: Left capture area (2 columns × 8 rows)
+# - LEDs 16-79: Main chess board (8 columns × 8 rows)
+# - LEDs 80-95: Right capture area (2 columns × 8 rows)
 
 # GPIO pin for LED data signal (must support hardware PWM)
 # GPIO 18 is PWM0 - required for precise WS2812B timing
 LED_DATA_PIN = 18  # Hardware PWM0
 
 # Number of LEDs in the strip
-LED_COUNT = 64  # 8×8 chess board
+LED_COUNT = 96  # 2×8 (left) + 8×8 (main) + 2×8 (right) = 96 total
 
 # LED brightness (0-255)
 # 255 = full brightness (15W power consumption)

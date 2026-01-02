@@ -1,8 +1,42 @@
 # Development Notes - Auto Chess Backend
 
-## Project Architecture
+## Project Overview
 
-### Core Components
+This project implements an automated chess board with AI gameplay capabilities. The system features:
+- **Interactive chess board**: 8×8 main playing area with LED feedback
+- **Capture areas**: 2×8 squares on each side for captured pieces (24mm offset)
+- **XY carriage system**: Stepper motors move electromagnet to drag pieces
+- **Reed switches**: Detect piece presence on all 96 squares (main board + capture areas)
+- **RGB LEDs**: Visual feedback for moves, captures, and game state (96 total)
+- **Game modes**: AI vs AI, Player vs AI, Player vs Player
+
+## Physical Layout
+
+```
+Looking from white's perspective (y-axis points up):
+
+[Black Captures]  [Main Chess Board]  [White Captures]
+   2×8 squares         8×8 squares         2×8 squares
+   LEDs 0-15          LEDs 16-79          LEDs 80-95
+   Columns -2,-1      Columns 0-7         Columns 8,9
+        ↓ 24mm offset ↓              ↓ 24mm offset ↓
+   
+   Total width: ~536mm (2×40mm + 24mm + 248mm + 24mm + 2×40mm)
+   Height: 248mm (8 squares)
+   
+   Board coordinate system: (0,0) at square a1 (main board bottom-left)
+   - Left capture area uses negative board coordinates (columns -2, -1)
+   - Main board uses coordinates 0-7 (a1 to h8)
+   - Right capture area uses coordinates 8-9
+   
+   Motor coordinate system: After homing, motor position 0 = far left edge
+   - Motor homes at left edge (before left capture area)
+   - MOTOR_X_OFFSET = ~96mm added to convert board → motor coordinates
+   - Example: board x=0 (a1) → motor x=7680 steps (96mm × 80 steps/mm)
+   - All motor positions are positive after homing
+```
+
+## Core Components
 
 **motor_controller.py**
 - `StepperMotor`: Single stepper motor control with homing
@@ -18,16 +52,24 @@
 
 **config.py**
 - Centralized configuration for all GPIO pins
-- Chess board configuration (square size, board dimensions)
+- Extended board configuration:
+  - Main chess board: 8×8 squares
+  - Capture areas: 2×8 squares on each side (24mm offset)
+  - Total: 96 squares with LEDs and reed switches
+- Motor limits accommodate full extended range
 - Tunable parameters: step speeds, limits, directions, acceleration
 - Easy hardware reconfiguration without code changes
 
 **board_navigation.py**
 - Chess board coordinate conversions
-- `square_to_steps(row, col)` - Board coordinates to motor steps
+- `square_to_steps(row, col)` - Main board coordinates to motor steps
 - `chess_notation_to_steps('e4')` - Chess notation to motor steps
+- `extended_square_to_steps(row, col)` - Extended board with capture areas
+  - Handles negative columns (-2, -1) for left capture area
+  - Handles columns 8, 9 for right capture area
+  - Applies 24mm offset between main board and capture areas
 - `steps_to_mm(x, y)` - Steps to millimeters conversion
-- Board dimension queries
+- Board dimension queries (main and extended)
 
 **main.py**
 - CLI with subcommands for all operations
@@ -47,8 +89,11 @@
   - Move validation ensuring king safety
 
 **led/ws2812b_controller.py**
-- `WS2812BController`: Controls 64 individually addressable RGB LEDs
-  - Square-to-LED index mapping (a1=0 to h8=63)
+- `WS2812BController`: Controls 96 individually addressable RGB LEDs
+  - Main board: LEDs 16-79 (8×8 = 64 LEDs)
+  - Left capture area: LEDs 0-15 (2×8 = 16 LEDs)
+  - Right capture area: LEDs 80-95 (2×8 = 16 LEDs)
+  - Extended square-to-LED index mapping including capture areas
   - MockPixelStrip for testing without hardware
   - Game state visualization methods:
     * `show_valid_moves()` - Highlight legal moves (green) and captures (orange)
@@ -58,6 +103,10 @@
     * `show_checkmate()` - Bright red for game over
     * `show_stalemate()` - Yellow center squares
     * `show_player_turn()` - Edge lighting for turn indicator
+  - Capture area visualization:
+    * Captured pieces shown in RED for game duration
+    * Left area: black's captured pieces
+    * Right area: white's captured pieces
   - Rainbow pattern generator with HSV color conversion
   - Brightness control (0-255)
   - Uses rpi_ws281x library (hardware PWM on GPIO 18)
@@ -121,8 +170,14 @@ pytest tests/ -v -s
 ```
 
 **Test Structure**:
-- `tests/test_board_navigation.py` - Chess board navigation tests
+- `tests/test_board_navigation.py` - Chess board navigation and movement tests
+- `tests/test_extended_board.py` - Extended board coordinate system tests (capture areas)
+- `tests/test_utils.py` - Visualization utilities with capture area rendering
 - `tests/output/` - Generated visualization plots
+  - `movement/` - Movement path and speed analysis (with capture areas shown)
+  - `chess/` - Chess game logic visualizations
+  - `leds/` - LED pattern visualizations
+  - `reed_switches/` - Reed switch detection visualizations
 
 ### Pre-commit Workflow
 

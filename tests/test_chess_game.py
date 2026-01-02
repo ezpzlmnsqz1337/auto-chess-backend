@@ -5,6 +5,7 @@ Tests for chess game logic with visualizations.
 from pathlib import Path
 
 import matplotlib.patches as mpatches
+import matplotlib.patheffects as path_effects
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 
@@ -21,14 +22,13 @@ def _draw_chess_board(
     highlighted_squares: dict[Square, tuple[int, int, int]] | None = None,
     show_legal_moves: Square | None = None,
 ) -> Figure:
-    """Draw a chess board with pieces and optional highlights."""
-    fig, ax = plt.subplots(figsize=(8, 8))
+    """Draw a chess board with pieces and optional highlights using unified grid."""
+    from tests.test_utils import draw_chess_board_grid
 
-    # Draw squares
-    for row in range(8):
-        for col in range(8):
-            color = "#F0D9B5" if (row + col) % 2 == 0 else "#B58863"  # Light/dark squares
-            ax.add_patch(mpatches.Rectangle((col, row), 1, 1, facecolor=color, edgecolor="black"))
+    fig, ax = plt.subplots(figsize=(10, 8))
+
+    # Draw board grid using unified function (board coordinate space with capture areas)
+    draw_chess_board_grid(ax, show_capture_areas=True, use_motor_coordinates=False)
 
     # Highlight squares
     if highlighted_squares:
@@ -42,6 +42,7 @@ def _draw_chess_board(
                     facecolor=color_hex,
                     edgecolor="red",
                     linewidth=2,
+                    alpha=0.7,
                 )
             )
 
@@ -70,28 +71,47 @@ def _draw_chess_board(
 
     for square, piece in game.board.items():
         symbol = piece_symbols[piece.piece_type]
-        # White pieces are hollow (outlined), black pieces are filled
-        color = "white" if piece.player == Player.WHITE else "black"
-        ax.text(
-            square.col + 0.5,
-            square.row + 0.5,
-            symbol,
-            fontsize=40,
-            ha="center",
-            va="center",
-            color=color,
-            weight="bold",
-        )
+        # White pieces with black outline, black pieces solid
+        if piece.player == Player.WHITE:
+            text = ax.text(
+                square.col + 0.5,
+                square.row + 0.5,
+                symbol,
+                fontsize=40,
+                ha="center",
+                va="center",
+                color="white",
+                weight="bold",
+            )
+            # Add black outline to white pieces for visibility
+            text.set_path_effects(
+                [
+                    path_effects.Stroke(linewidth=3, foreground="black"),
+                    path_effects.Normal(),
+                ]
+            )
+        else:
+            ax.text(
+                square.col + 0.5,
+                square.row + 0.5,
+                symbol,
+                fontsize=40,
+                ha="center",
+                va="center",
+                color="black",
+                weight="bold",
+            )
 
-    # Labels
-    ax.set_xlim(0, 8)
-    ax.set_ylim(0, 8)
+    # Labels and limits to show capture areas
+    ax.set_xlim(-2.5, 10.5)
+    ax.set_ylim(-0.5, 8.5)
     ax.set_aspect("equal")
     ax.set_xticks([i + 0.5 for i in range(8)])
     ax.set_xticklabels(["a", "b", "c", "d", "e", "f", "g", "h"])
     ax.set_yticks([i + 0.5 for i in range(8)])
     ax.set_yticklabels(["1", "2", "3", "4", "5", "6", "7", "8"])
     ax.set_title(title, fontsize=16, weight="bold")
+    ax.grid(False)
 
     return fig
 

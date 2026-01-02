@@ -420,24 +420,17 @@ def _draw_reed_switch_board(ax: "Axes", reed: ReedSwitchController, title: str) 
 
 
 def _draw_board_grid(ax: "Axes") -> None:
-    """Draw chess board grid with alternating squares."""
-    for row in range(8):
-        for col in range(8):
-            if (row + col) % 2 == 1:
-                rect = mpatches.Rectangle(
-                    (col - 0.5, row - 0.5), 1, 1, facecolor="lightgray", alpha=0.3
-                )
-                ax.add_patch(rect)
+    """Draw chess board grid with alternating squares using unified function."""
+    from tests.test_utils import draw_chess_board_grid
 
-    # Draw grid lines
-    for i in range(9):
-        ax.axhline(i - 0.5, color="gray", linewidth=0.5, alpha=0.5)
-        ax.axvline(i - 0.5, color="gray", linewidth=0.5, alpha=0.5)
+    draw_chess_board_grid(ax, show_capture_areas=True, use_motor_coordinates=False)
 
 
 def _draw_piece(ax: "Axes", row: int, col: int, color: str = "black") -> None:
-    """Draw a piece (circle) at the given board position."""
-    circle = mpatches.Circle((col, row), 0.3, facecolor=color, edgecolor="darkgray", linewidth=2)
+    """Draw a piece (circle) at the given board position (centered on square)."""
+    circle = mpatches.Circle(
+        (col + 0.5, row + 0.5), 0.3, facecolor=color, edgecolor="darkgray", linewidth=2
+    )
     ax.add_patch(circle)
 
 
@@ -446,7 +439,7 @@ def _highlight_square(
 ) -> None:
     """Highlight a square on the board."""
     rect = mpatches.Rectangle(
-        (col - 0.5, row - 0.5), 1, 1, facecolor=color, alpha=alpha, edgecolor=color, linewidth=3
+        (col, row), 1, 1, facecolor=color, alpha=alpha, edgecolor=color, linewidth=3
     )
     ax.add_patch(rect)
     if label:
@@ -459,8 +452,8 @@ def _highlight_move(ax: "Axes", reed: ReedSwitchController, from_idx: int, to_id
     to_row, to_col = reed._index_to_square(to_idx)
     ax.annotate(
         "",
-        xy=(to_col, to_row),
-        xytext=(from_col, from_row),
+        xy=(to_col + 0.5, to_row + 0.5),
+        xytext=(from_col + 0.5, from_row + 0.5),
         arrowprops={
             "arrowstyle": "->",
             "color": "red",
@@ -471,11 +464,17 @@ def _highlight_move(ax: "Axes", reed: ReedSwitchController, from_idx: int, to_id
 
 
 def _add_board_labels(ax: "Axes") -> None:
-    """Add file and rank labels to the board."""
-    ax.set_xticks(range(8))
+    """Add file and rank labels to the board with capture areas visible."""
+    # Position labels at square centers
+    ax.set_xticks([i + 0.5 for i in range(8)])
     ax.set_xticklabels([chr(ord("a") + i) for i in range(8)])
-    ax.set_yticks(range(8))
+    ax.set_yticks([i + 0.5 for i in range(8)])
     ax.set_yticklabels([str(i + 1) for i in range(8)])
+
+    # Set limits to show capture areas
+    ax.set_xlim(-2.5, 10.5)
+    ax.set_ylim(-0.5, 8.5)
+    ax.set_aspect("equal")
 
 
 if __name__ == "__main__":

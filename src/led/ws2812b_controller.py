@@ -336,7 +336,11 @@ class WS2812BController:
         """
         from chess_game import Player
 
-        color = LEDColors.WHITE_PLAYER if game.current_player == Player.WHITE else LEDColors.BLACK_PLAYER
+        color = (
+            LEDColors.WHITE_PLAYER
+            if game.current_player == Player.WHITE
+            else LEDColors.BLACK_PLAYER
+        )
 
         # Find all squares with pieces belonging to the current player
         player_squares = []
@@ -398,6 +402,141 @@ class WS2812BController:
             int((g_f + m) * 255),
             int((b_f + m) * 255),
         )
+
+    def show_mode_selection(self, placed_squares: list[Square]) -> None:
+        """
+        Display interactive mode selection screen.
+
+        Mode buttons on row 0 (white's back rank):
+        - a1: Blue button (AvA mode) - Place piece here to select AI vs AI
+        - b1: Light blue button (PvA mode) - Place piece here after a1 to select Player vs AI
+        - h1: Green button (PvP mode) - Place piece here after a1,b1 to select Player vs Player
+
+        Placed pieces show as white. Remaining board squares display mode text in white:
+        - No pieces: Display "AvA" (AI vs AI)
+        - a1 placed: Display "PvA" (Player vs AI)
+        - a1,b1 placed: Display "PvP" (Player vs Player)
+
+        Args:
+            placed_squares: List of squares where pieces have been placed
+        """
+        self.clear_all()
+
+        # Define button squares and their colors
+        a1 = Square(0, 0)
+        b1 = Square(0, 1)
+        h1 = Square(0, 7)
+
+        # Letter patterns for mode text (rows 2-7, columns 1-6 for centered text)
+        # Each letter is approximately 5 rows tall, 2-3 columns wide
+        # 'A' pattern (col 1-2, rows 3-7)
+        letter_a = [
+            (3, 0),
+            (4, 0),
+            (5, 0),
+            (6, 0),
+            (7, 1),
+            (5, 1),
+            (5, 2),
+            (3, 2),
+            (4, 2),
+            (6, 2),
+        ]
+        # 'P' pattern (col 1-2, rows 3-7)
+        letter_p = [
+            (3, 0),
+            (4, 0),
+            (5, 0),
+            (6, 0),
+            (7, 0),
+            (7, 1),
+            (5, 1),
+            (5, 2),
+            (6, 2),
+            (7, 2),
+        ]
+
+        # Determine which mode is active based on placed pieces
+        mode_text_squares = []
+
+        if a1 not in placed_squares:
+            # Show AA
+            mode_text_squares = letter_a + [(s[0], s[1] + 5) for s in letter_a]
+        elif b1 not in placed_squares:
+            # Show PA
+            mode_text_squares = letter_p + [(s[0], s[1] + 5) for s in letter_a]
+        else:
+            # Show PP
+            mode_text_squares = letter_p + [(s[0], s[1] + 5) for s in letter_p]
+
+        # Set button colors
+        if a1 in placed_squares:
+            self.set_square_color(a1, (200, 200, 200))  # White (selected)
+        else:
+            self.set_square_color(a1, (0, 0, 200))  # Blue (AvA button)
+
+        if b1 in placed_squares:
+            self.set_square_color(b1, (200, 200, 200))  # White (selected)
+        else:
+            self.set_square_color(b1, (0, 150, 200))  # Light blue (PvA button)
+
+        if h1 in placed_squares:
+            self.set_square_color(h1, (200, 200, 200))  # White (selected)
+        else:
+            self.set_square_color(h1, (0, 200, 0))  # Green (PvP button)
+
+        # Draw mode text in white
+        for row, col in mode_text_squares:
+            if 0 <= row < 8 and 0 <= col < 8:
+                square = Square(row, col)
+                if square not in [a1, b1, h1]:  # Don't override buttons
+                    self.set_square_color(square, (200, 200, 200))  # White text
+
+        self.show()
+
+    def show_waiting_for_pieces(
+        self, placed_squares: list[Square], correct_squares: list[Square]
+    ) -> None:
+        """
+        Show board waiting for pieces to be placed in starting position.
+
+        Squares where pieces should be placed are shown in RED.
+        Squares where pieces have been correctly placed show in GREEN.
+        All other squares are off.
+
+        Args:
+            placed_squares: Squares where pieces have been detected
+            correct_squares: Squares where pieces should be in starting position
+        """
+        self.clear_all()
+
+        # Show expected positions in RED
+        for square in correct_squares:
+            if square not in placed_squares:
+                self.set_square_color(square, (200, 0, 0))  # RED - piece needed
+
+        # Show placed pieces in GREEN
+        for square in placed_squares:
+            if square in correct_squares:
+                self.set_square_color(square, (0, 200, 0))  # GREEN - correct placement
+
+        self.show()
+
+    def show_piece_placed_feedback(self, square: Square, is_correct: bool) -> None:
+        """
+        Show immediate feedback when a piece is placed.
+
+        Args:
+            square: Square where piece was placed
+            is_correct: Whether piece was placed in correct position
+        """
+        if is_correct:
+            # Bright green flash for correct placement
+            self.set_square_color(square, (0, 200, 0))
+        else:
+            # Red flash for incorrect placement
+            self.set_square_color(square, (200, 0, 0))
+        self.show()
 
     def cleanup(self) -> None:
         """Clean up resources and turn off all LEDs."""
