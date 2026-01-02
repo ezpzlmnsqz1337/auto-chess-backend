@@ -189,7 +189,7 @@ Other microstepping options (all with 1/256 interpolation in stealthChop2):
 
 ```bash
 # Initialize project (already done)
-cd /home/mazel/workspace/auto-chess-backend
+cd ~/workspace/auto-chess-backend
 uv sync
 
 # Activate virtual environment

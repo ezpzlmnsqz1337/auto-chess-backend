@@ -2,7 +2,7 @@
 
 # Configuration
 REMOTE_HOST="pizero2-2"
-REMOTE_DIR="/home/mazel/workspace/auto-chess-backend"
+REMOTE_DIR="~/workspace/auto-chess-backend"
 LOCAL_DIR="."
 
 # Colors for output
