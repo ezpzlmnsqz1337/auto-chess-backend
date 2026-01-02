@@ -65,17 +65,17 @@ ENABLE_ACCELERATION = True
 
 # Minimum step delay (maximum speed) in seconds
 # StealthChop remains quiet up to ~10kHz
-# 60mm/s = 4800 steps/s, 100mm/s = 8000 steps/s
-MIN_STEP_DELAY = 0.000208  # 4800 steps/second = 60mm/s max speed
+# 60mm/s = 4800 steps/s, 100mm/s = 8000 steps/s, 150mm/s = 12000 steps/s
+MIN_STEP_DELAY = 0.000125  # 8000 steps/second = 100mm/s max speed
 
 # Maximum step delay (starting/ending speed) in seconds
-MAX_STEP_DELAY = 0.004  # ~250 steps/second starting speed
+MAX_STEP_DELAY = 0.002  # 500 steps/second starting speed (faster ramp-up)
 
 # Acceleration steps - number of steps to ramp up/down
 # Larger value = smoother but slower acceleration
 # Recommended: 200-500 for mechanical systems (chess board)
 # 200 steps = ~0.5s ramp, 300 steps = ~0.7s ramp, 500 steps = ~1.2s ramp
-ACCELERATION_STEPS = 300
+ACCELERATION_STEPS = 200  # Reduced for quicker acceleration
 
 # Microstepping Configuration (set via TMC2208 MS1/MS2 pins)
 # 16x microstepping recommended for smooth, quiet operation
