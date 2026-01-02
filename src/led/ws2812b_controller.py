@@ -11,7 +11,10 @@ LED Index Mapping:
 - Row 7 (Black's back rank): a8=56, b8=57, c8=58, d8=59, e8=60, f8=61, g8=62, h8=63
 """
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from chess_game import ChessGame
 
 try:
     from rpi_ws281x import PixelStrip
@@ -324,24 +327,25 @@ class WS2812BController:
         self.highlight_squares(center_squares, LEDColors.STALEMATE)
         self.show()
 
-    def show_player_turn(self, is_white_turn: bool) -> None:
+    def show_player_turn(self, game: "ChessGame") -> None:
         """
-        Briefly flash to indicate whose turn it is.
+        Light up squares containing the active player's pieces.
 
         Args:
-            is_white_turn: True if white's turn, False if black's turn
+            game: ChessGame instance with current board state
         """
-        color = LEDColors.WHITE_PLAYER if is_white_turn else LEDColors.BLACK_PLAYER
-        # Flash the edges
-        edge_squares = []
-        for col in range(8):
-            edge_squares.append(Square(0, col))  # Bottom rank
-            edge_squares.append(Square(7, col))  # Top rank
-        for row in range(1, 7):
-            edge_squares.append(Square(row, 0))  # Left file
-            edge_squares.append(Square(row, 7))  # Right file
+        from chess_game import Player
 
-        self.highlight_squares(edge_squares, color, clear_first=True)
+        color = LEDColors.WHITE_PLAYER if game.current_player == Player.WHITE else LEDColors.BLACK_PLAYER
+
+        # Find all squares with pieces belonging to the current player
+        player_squares = []
+        for square, piece in game.board.items():
+            if piece.player == game.current_player:
+                player_squares.append(square)
+
+        self.clear_all()
+        self.highlight_squares(player_squares, color, clear_first=False)
         self.show()
 
     def rainbow_pattern(self, brightness_scale: float = 1.0) -> None:

@@ -34,6 +34,34 @@
 - Interactive mode for manual control
 - Error handling and user feedback
 
+**chess_game/** (Modular package)
+- `player.py`: Player enum (WHITE/BLACK) with opposite() method
+- `piece.py`: PieceType enum and Piece dataclass
+- `square.py`: Square dataclass with chess notation conversion
+- `game.py`: ChessGame class with full rule validation
+  - All piece movement rules (pawn, knight, bishop, rook, queen, king)
+  - Check and checkmate detection
+  - Castling (kingside and queenside)
+  - En passant capture
+  - Pawn promotion
+  - Move validation ensuring king safety
+
+**led/ws2812b_controller.py**
+- `WS2812BController`: Controls 64 individually addressable RGB LEDs
+  - Square-to-LED index mapping (a1=0 to h8=63)
+  - MockPixelStrip for testing without hardware
+  - Game state visualization methods:
+    * `show_valid_moves()` - Highlight legal moves (green) and captures (orange)
+    * `show_check_state()` - Red indicator for check
+    * `show_invalid_move_feedback()` - Red feedback for illegal moves
+    * `show_move_feedback()` - Show last move made
+    * `show_checkmate()` - Bright red for game over
+    * `show_stalemate()` - Yellow center squares
+    * `show_player_turn()` - Edge lighting for turn indicator
+  - Rainbow pattern generator with HSV color conversion
+  - Brightness control (0-255)
+  - Uses rpi_ws281x library (hardware PWM on GPIO 18)
+
 ## Code Quality Tools
 
 ### Ruff (Linting & Formatting)

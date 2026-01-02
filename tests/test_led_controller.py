@@ -8,7 +8,7 @@ import matplotlib.patches as patches
 import matplotlib.pyplot as plt
 import pytest
 
-from chess_game import Square
+from chess_game import ChessGame, Square
 from led import WS2812BController
 
 # Create output directory for visualizations
@@ -247,16 +247,22 @@ def test_show_stalemate() -> None:
 def test_show_player_turn() -> None:
     """Test showing player turn indicator."""
     controller = WS2812BController(use_mock=True)
+    game = ChessGame()
 
-    # Test white's turn
-    controller.show_player_turn(is_white_turn=True)
-    # Edge squares should be white player color
+    # Test white's turn (initial position)
+    controller.show_player_turn(game)
+    # White's pieces should be lit (e.g., a1 has white rook)
     assert controller.get_square_color(Square(0, 0)) == TestLEDColors.WHITE_PLAYER
+    # Black's pieces should be off (e.g., a8 has black rook)
+    assert controller.get_square_color(Square(7, 0)) == TestLEDColors.OFF
 
-    # Test black's turn
-    controller.show_player_turn(is_white_turn=False)
-    # Edge squares should be black player color
-    assert controller.get_square_color(Square(0, 0)) == TestLEDColors.BLACK_PLAYER
+    # Make a move to switch to black's turn
+    game.make_move(Square(1, 4), Square(3, 4))  # e2 to e4
+    controller.show_player_turn(game)
+    # Black's pieces should be lit (e.g., a8 has black rook)
+    assert controller.get_square_color(Square(7, 0)) == TestLEDColors.BLACK_PLAYER
+    # White's pieces should be off (e.g., a1 has white rook)
+    assert controller.get_square_color(Square(0, 0)) == TestLEDColors.OFF
 
 
 def test_rainbow_pattern() -> None:
@@ -424,12 +430,13 @@ def test_visualize_rainbow_pattern() -> None:
 def test_visualize_player_turn() -> None:
     """Visualize player turn indicator."""
     controller = WS2812BController(use_mock=True)
+    game = ChessGame()
 
-    controller.show_player_turn(is_white_turn=True)
+    controller.show_player_turn(game)
 
     _draw_led_board(
         controller,
-        "LED Pattern: White's Turn",
+        "LED Pattern: White's Turn (White Pieces Highlighted)",
         "led_white_turn.png",
     )
 
