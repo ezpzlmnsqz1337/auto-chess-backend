@@ -221,7 +221,7 @@ class StepperMotor:
 
     def _simulate_homing(self) -> None:
         """Simulate homing when GPIO is not available."""
-        print("GPIO not available or mock detected. Simulating home at position 0.")
+        print("🔧 GPIO not available or mock detected. Simulating home at position 0.")
         self.current_position = 0
         self.is_homed = True
 
@@ -251,7 +251,7 @@ class StepperMotor:
                 else:
                     self.current_position = 0
                     self.is_homed = True
-                    print(f"Homing complete after {steps_taken} steps")
+                    print(f"✅ Homing complete after {steps_taken} steps")
                     return
         finally:
             self.step_delay = original_step_delay
@@ -279,7 +279,7 @@ class StepperMotor:
         """Stop all movement immediately."""
         if GPIO_AVAILABLE and self._step_device:
             self._step_device.off()
-        print("Emergency stop triggered")
+        print("🛑 Emergency stop triggered")
 
     @staticmethod
     def calculate_step_delay(

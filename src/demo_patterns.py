@@ -72,12 +72,12 @@ def execute_pattern(
         verbose: Print progress updates
     """
     if verbose:
-        print(f"Executing pattern with {len(positions)} waypoints...")
+        print(f"🎯 Executing pattern with {len(positions)} waypoints...")
 
     for i, (x, y) in enumerate(positions):
         controller.move_to(x, y)
         if verbose and (i + 1) % 10 == 0:
-            print(f"  Progress: {i + 1}/{len(positions)} waypoints")
+            print(f"  📍 Progress: {i + 1}/{len(positions)} waypoints")
 
     if verbose:
         final_x, final_y = controller.get_position()

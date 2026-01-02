@@ -39,7 +39,7 @@ class Electromagnet:
             self._device.on()
         self.is_on = True
         if DEBUG_PRINTS:
-            print("Electromagnet: ON")
+            print("🧲 Electromagnet: ON")
 
     def off(self) -> None:
         """Turn the electromagnet off."""
@@ -47,7 +47,7 @@ class Electromagnet:
             self._device.off()
         self.is_on = False
         if DEBUG_PRINTS:
-            print("Electromagnet: OFF")
+            print("⭕ Electromagnet: OFF")
 
     def toggle(self) -> None:
         """Toggle the electromagnet state."""

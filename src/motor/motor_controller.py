@@ -57,14 +57,14 @@ class MotorController:
             home_step_delay: Step delay during homing
         """
         if DEBUG_PRINTS:
-            print("Starting homing sequence...")
-            print("Homing X axis...")
+            print("🏠 Starting homing sequence...")
+            print("➡️  Homing X axis...")
         self.motor_x.home(home_direction_x, home_step_delay)
         if DEBUG_PRINTS:
-            print("Homing Y axis...")
+            print("⬆️  Homing Y axis...")
         self.motor_y.home(home_direction_y, home_step_delay)
         if DEBUG_PRINTS:
-            print("Homing complete!")
+            print("✅ Homing complete!")
 
     def move_to(self, x: int, y: int) -> None:
         """
@@ -87,10 +87,10 @@ class MotorController:
         dy = y - y_current
 
         if DEBUG_PRINTS:
-            print(f"Moving to X={x}, Y={y}")
+            print(f"🎯 Moving to X={x}, Y={y}")
         self._move_coordinated(dx, dy)
         if DEBUG_PRINTS:
-            print("Reached target position")
+            print("✅ Reached target position")
 
     def _move_coordinated(self, dx: int, dy: int) -> None:
         """
@@ -323,21 +323,21 @@ class MotorController:
         if self.electromagnet:
             self.electromagnet.on()
         else:
-            print("Warning: No electromagnet configured")
+            print("⚠️  Warning: No electromagnet configured")
 
     def magnet_off(self) -> None:
         """Turn electromagnet off."""
         if self.electromagnet:
             self.electromagnet.off()
         else:
-            print("Warning: No electromagnet configured")
+            print("⚠️  Warning: No electromagnet configured")
 
     def magnet_toggle(self) -> None:
         """Toggle electromagnet state."""
         if self.electromagnet:
             self.electromagnet.toggle()
         else:
-            print("Warning: No electromagnet configured")
+            print("⚠️  Warning: No electromagnet configured")
 
     def emergency_stop(self) -> None:
         """Emergency stop all motors and turn off electromagnet."""

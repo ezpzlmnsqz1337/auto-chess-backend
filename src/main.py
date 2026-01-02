@@ -10,8 +10,8 @@ import click
 from gpiozero import Device
 from gpiozero.pins.mock import MockFactory
 
-import config
-from motor import Electromagnet, MotorController, StepperMotor
+from src import config
+from src.motor import Electromagnet, MotorController, StepperMotor
 
 # Use mock pin factory if no real GPIO hardware is available
 try:

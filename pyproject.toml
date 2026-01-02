@@ -9,6 +9,9 @@ dependencies = [
     "click>=8.1.0",
 ]
 
+[project.scripts]
+chess = "src.main:cli"
+
 [project.optional-dependencies]
 dev = [
     "ruff>=0.8.0",
