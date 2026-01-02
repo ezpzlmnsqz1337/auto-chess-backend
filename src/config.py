@@ -5,7 +5,7 @@ Configuration for the stepper motor control system.
 # GPIO Pin Configuration
 # Motor X (horizontal axis)
 MOTOR_X_STEP_PIN = 17
-MOTOR_X_DIR_PIN = 18
+MOTOR_X_DIR_PIN = 15  # Changed from 18 (now used for LEDs)
 MOTOR_X_ENABLE_PIN = 5  # LOW = enabled, HIGH = disabled
 
 # Motor Y (vertical axis)
@@ -131,3 +131,62 @@ REED_SWITCH_DEBOUNCE_TIME = 0.1  # 100ms
 # Move detection timeout
 # Maximum time to wait for a move to complete (piece picked up then placed)
 MOVE_DETECTION_TIMEOUT = 30.0  # 30 seconds
+# WS2812B LED Configuration
+# 64 individually addressable RGB LEDs (one per square) for visual feedback
+
+# GPIO pin for LED data signal (must support hardware PWM)
+# GPIO 18 is PWM0 - required for precise WS2812B timing
+LED_DATA_PIN = 18  # Hardware PWM0
+
+# Number of LEDs in the strip
+LED_COUNT = 64  # 8×8 chess board
+
+# LED brightness (0-255)
+# 255 = full brightness (15W power consumption)
+# 128 = half brightness (4W)
+# 64 = quarter brightness (1W)
+# Start low to avoid power issues
+LED_BRIGHTNESS = 64  # Quarter brightness, adjust based on power supply
+
+# LED strip frequency (Hz)
+# WS2812B uses 800kHz timing, library handles this
+LED_FREQ_HZ = 800000  # Do not change
+
+# LED DMA channel (for hardware PWM)
+# Use channel 10 (safe, not used by audio)
+LED_DMA = 10
+
+# LED invert signal (usually False for WS2812B)
+LED_INVERT = False
+
+# LED channel (0 for GPIO 18/PWM0)
+LED_CHANNEL = 0
+
+
+# Color scheme for different board states (RGB tuples)
+class LEDColors:
+    """Predefined colors for LED feedback."""
+
+    # Basic colors
+    OFF = (0, 0, 0)  # No light
+    WHITE = (255, 255, 255)  # Full white
+    BLACK_DIM = (10, 10, 10)  # Dim white for black pieces
+
+    # Player colors (whose turn)
+    WHITE_PLAYER = (240, 240, 200)  # Warm white for white's turn
+    BLACK_PLAYER = (180, 180, 220)  # Cool white for black's turn
+
+    # Move feedback
+    VALID_MOVE = (0, 100, 0)  # Green for legal moves
+    VALID_CAPTURE = (100, 50, 0)  # Orange for captures
+    INVALID_MOVE = (100, 0, 0)  # Red for illegal moves
+    SELECTED = (0, 50, 100)  # Blue for selected piece
+
+    # Game states
+    CHECK = (150, 0, 0)  # Bright red for check
+    CHECKMATE = (200, 0, 0)  # Very bright red for checkmate
+    STALEMATE = (100, 100, 0)  # Yellow for stalemate
+
+    # Special
+    LAST_MOVE_FROM = (50, 30, 0)  # Dim orange for last move start
+    LAST_MOVE_TO = (50, 50, 0)  # Dim yellow for last move end

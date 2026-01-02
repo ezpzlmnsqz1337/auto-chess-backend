@@ -1,6 +1,7 @@
 # Auto Chess Backend - XY Carriage Motor Controller
 
 Control stepper motors to move an electromagnet under a chess board for automatic piece movement.
+Inspired by the [Automated-Chessboard project](https://www.instructables.com/Automated-Chessboard/)
 
 ## Overview
 
@@ -20,6 +21,86 @@ This project uses a Raspberry Pi Zero 2W to control two NEMA stepper motors (X a
 - **64× Reed switches** - 2×14mm N/O (Normally Open) magnetic switches for piece detection
 - **4× CD74HC4067** - 16-channel analog/digital multiplexers for reading reed switches
 - **64× Pull-down resistors** - 10kΩ resistors for reed switch inputs (optional - can use Pi internal pull-downs)
+- **64× WS2812B LEDs** - Individually addressable RGB LEDs (5050 SMD, 5V, 0.24W each) for square illumination
+
+### Power Supply Options
+
+The system requires power for:
+- Raspberry Pi Zero 2W: ~1-2W (5V @ 0.2-0.4A)
+- 2× NEMA steppers: ~12W (24V @ 0.5A)
+- Electromagnet: ~7-19W (24V @ 0.3-0.8A)
+- 64× WS2812B LEDs: ~15W max at full white (5V @ 3A), typical usage 3-5W
+
+**Total: ~35-50W typical, ~60W maximum**
+
+#### Option 1: USB-C PD (Power Delivery) - Modern & Elegant
+
+USB-C PD can provide up to 100W (20V @ 5A) using modern phone/laptop chargers.
+
+**Pros**:
+- Single cable solution
+- Common chargers (65W laptop chargers work great)
+- Clean, modern interface
+- Voltage negotiation built-in
+
+**Cons**:
+- Requires USB-C PD trigger board (~$5-10)
+- More complex wiring
+- Need to step down 20V to 24V, 5V, and 3.3V
+
+**Recommended Components**:
+- **USB-C PD Trigger Board**: Search "USB-C PD trigger 20V" - boards that negotiate voltage automatically
+  - Example: IP2721/IP2716 based boards
+  - Set to request 20V (some support 9V, 12V, 15V, 20V selection)
+- **Buck Converters**:
+  - 20V → 24V boost converter (or use 20V directly for motors if acceptable)
+  - 20V/24V → 5V buck converter (5A rated) for WS2812B LEDs
+  - 5V → 3.3V linear regulator or buck converter for Pi
+- **USB-C Charger**: 65W+ laptop charger (20V @ 3.25A)
+
+**Wiring**:
+```
+USB-C Charger (65W+, 20V) 
+  ↓
+USB-C PD Trigger Board (configured for 20V)
+  ↓
+  ├─→ Motors & Electromagnet (20-24V)
+  ├─→ Buck Converter (20V → 5V @ 5A) → WS2812B LEDs
+  └─→ Buck Converter (20V → 5V @ 2A) → Pi (via GPIO or USB)
+```
+
+#### Option 2: Standard 24V Brick Power Supply - Simple & Reliable
+
+Traditional approach using a 24V wall adapter.
+
+**Pros**:
+- Simple, proven design
+- Direct 24V for motors
+- Fewer conversion stages
+- Easier to troubleshoot
+
+**Cons**:
+- Bulkier power brick
+- Less elegant than USB-C
+
+**Recommended**:
+- **24V 3A (72W) power supply** with barrel jack
+- **Buck Converters**:
+  - 24V → 5V @ 5A for WS2812B LEDs
+  - 24V → 5V @ 2A for Raspberry Pi
+
+**Wiring**:
+```
+24V Power Supply (3A, 72W)
+  ↓
+  ├─→ Motors & Electromagnet (24V direct)
+  ├─→ Buck Converter (24V → 5V @ 5A) → WS2812B LEDs
+  └─→ Buck Converter (24V → 5V @ 2A) → Pi (via GPIO pins or micro-USB)
+```
+
+**Recommendation**: For prototyping, **Option 2 (24V brick)** is simpler. For final build, **Option 1 (USB-C PD)** is more elegant and uses common laptop chargers.
+
+**⚠️ Important**: Always use proper fusing and ensure common ground between all power supplies and the Raspberry Pi.
 
 ## Hardware Connections
 
@@ -28,7 +109,7 @@ This project uses a Raspberry Pi Zero 2W to control two NEMA stepper motors (X a
 | Function | GPIO Pin |
 |----------|----------|
 | Motor X - Step | GPIO 17 |
-| Motor X - Direction | GPIO 18 |
+| Motor X - Direction | GPIO 15 |
 | Motor X - Enable | GPIO 5 |
 | Motor Y - Step | GPIO 27 |
 | Motor Y - Direction | GPIO 22 |
@@ -36,6 +117,18 @@ This project uses a Raspberry Pi Zero 2W to control two NEMA stepper motors (X a
 | Motor X - Home Switch | GPIO 23 |
 | Motor Y - Home Switch | GPIO 24 |
 | Electromagnet Control | GPIO 25 |
+
+### WS2812B LED Strip Pins
+
+For visual feedback using 64 individually addressable RGB LEDs:
+
+| Function | GPIO Pin | Notes |
+|----------|----------|-------|
+| LED Data Signal | GPIO 18 (PWM0) | Hardware PWM for precise timing |
+| LED Power (5V) | External 5V supply | From buck converter (5A rated) |
+| LED Ground | GND | Common with Pi GND |
+
+**Important**: GPIO 18 supports hardware PWM (PWM0) which is required for reliable WS2812B communication. Do not use GPIO 18 for motors - it's already reassigned above for LED control. Update motor X direction to use GPIO 15 instead.
 
 ### Reed Switch Multiplexer Pins
 
@@ -133,6 +226,60 @@ Note: External resistors not required - Pi has internal pull-downs enabled in so
 3. System scans all 64 squares sequentially by iterating through 0-15 on address pins
 4. When a magnetic piece is on a square, the reed switch closes, pulling the channel HIGH
 5. Can detect piece placement, removal, and track all moves made by human players
+
+### WS2812B LED Strip Wiring
+
+Each chess square has one WS2812B RGB LED (5050 SMD) for visual feedback.
+
+**WS2812B Specifications**:
+- Voltage: 5V DC
+- Power: 0.24W per LED (60mA max at full white)
+- Total: 64 LEDs × 0.24W = **15.36W max** (3A @ 5V at full brightness)
+- Typical usage: 3-5W (lower brightness, not all white)
+- Protocol: Single-wire data (800kHz timing, requires hardware PWM)
+
+**Wiring Topology: Single Daisy Chain**
+```
+Pi GPIO 18 (PWM0) → LED 1 Data In
+LED 1 Data Out → LED 2 Data In
+LED 2 Data Out → LED 3 Data In
+...
+LED 64 Data Out → (end of chain)
+
+All LEDs:
+  5V → External 5V supply (buck converter, 5A rated)
+  GND → Common ground with Pi
+```
+
+**LED Index Mapping** (a1 = 0, h8 = 63):
+```
+Row 8:  56  57  58  59  60  61  62  63  (a8-h8)
+Row 7:  48  49  50  51  52  53  54  55  (a7-h7)
+Row 6:  40  41  42  43  44  45  46  47  (a6-h6)
+Row 5:  32  33  34  35  36  37  38  39  (a5-h5)
+Row 4:  24  25  26  27  28  29  30  31  (a4-h4)
+Row 3:  16  17  18  19  20  21  22  23  (a3-h3)
+Row 2:   8   9  10  11  12  13  14  15  (a2-h2)
+Row 1:   0   1   2   3   4   5   6   7  (a1-h1)
+        a   b   c   d   e   f   g   h
+```
+
+**Physical Installation**:
+1. Mount one WS2812B LED in the top-right corner of each square
+2. Wire in a continuous snake pattern or row-by-row
+3. Use **470Ω resistor** on data line (between Pi and first LED) to reduce ringing
+4. Add **1000µF capacitor** across 5V and GND near LED strip for power stability
+5. Keep data wire short (<1m) or use level shifter for longer runs
+
+**Power Injection**:
+- For 64 LEDs, inject power at **both ends** of the strip to prevent voltage drop
+- Or inject every 32 LEDs (middle + ends)
+- Use 18-20 AWG wire for power distribution
+
+**Critical Timing**:
+- WS2812B requires precise 800kHz timing (1.25µs periods)
+- **Must use GPIO 18 (hardware PWM)** - software bit-banging is unreliable
+- `rpi_ws281x` library handles timing automatically
 
 ### TMC2208 Stepper Driver Configuration
 
