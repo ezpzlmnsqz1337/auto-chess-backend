@@ -76,7 +76,6 @@ def test_board_edge_square() -> None:
     )
 
     fig.suptitle("Board Edge Square Test - Path & Speed Analysis", fontsize=14, fontweight="bold")
-    plt.tight_layout()
     plt.savefig(output_dir / "edge_square.png", dpi=100, bbox_inches="tight")
     plt.close(fig)
 
@@ -198,7 +197,6 @@ def test_all_diagonals() -> None:
         )
 
     fig.suptitle("All Major Diagonals Test - Path & Speed Analysis", fontsize=16, fontweight="bold")
-    plt.tight_layout()
     plt.savefig(output_dir / "all_diagonals.png", dpi=100, bbox_inches="tight")
     plt.close(fig)
 
@@ -272,7 +270,6 @@ def test_snake_pattern_all_squares() -> None:
     )
 
     fig.suptitle("Snake Pattern Test - Path & Speed Analysis", fontsize=14, fontweight="bold")
-    plt.tight_layout()
     plt.savefig(output_dir / "snake_pattern.png", dpi=100, bbox_inches="tight")
     plt.close(fig)
 
