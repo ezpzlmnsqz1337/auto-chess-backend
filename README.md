@@ -128,7 +128,7 @@ For visual feedback using 64 individually addressable RGB LEDs:
 | LED Power (5V) | External 5V supply | From buck converter (5A rated) |
 | LED Ground | GND | Common with Pi GND |
 
-**Important**: GPIO 18 supports hardware PWM (PWM0) which is required for reliable WS2812B communication. Do not use GPIO 18 for motors - it's already reassigned above for LED control. Update motor X direction to use GPIO 15 instead.
+**Important**: GPIO 18 supports hardware PWM (PWM0) which is required for reliable WS2812B communication.
 
 ### Reed Switch Multiplexer Pins
 
@@ -281,6 +281,35 @@ Row 1:   0   1   2   3   4   5   6   7  (a1-h1)
 - **Must use GPIO 18 (hardware PWM)** - software bit-banging is unreliable
 - `rpi_ws281x` library handles timing automatically
 
+### LED Mode Selection & Setup Feedback
+
+The system uses LEDs to provide interactive visual feedback during setup:
+
+**Interactive Mode Selection** - Place pieces to select and confirm game mode:
+- **No pieces**: AI vs AI mode ready (displays "AA")
+- **Place piece on a1**: Player vs AI mode ready - Player plays WHITE (displays "PA")
+- **Place piece on b1**: Player vs AI mode ready - Player plays BLACK (displays "AP")
+- **Place pieces on both a1 and b1**: Player vs Player mode ready (displays "PP")
+- **Place piece on h1**: Confirm and START game in selected mode
+- Button squares:
+  - a1: Light blue button (turns white when piece placed)
+  - b1: Blue button (turns white when piece placed)
+  - h1: Green confirmation button (turns white to start game)
+- Board displays current mode text (AA/PA/AP/PP) in white LEDs
+
+![Mode Selection - No Pieces](tests/output/leds/led_mode_no_pieces.png)
+![Mode Selection - One Piece](tests/output/leds/led_mode_one_piece.png)
+![Mode Selection - Two Pieces](tests/output/leds/led_mode_two_pieces.png)
+
+**Piece Placement Feedback** - Visual guidance for setting up starting position:
+- **RED** - Empty squares that need pieces
+- **GREEN** - Correctly placed pieces
+- Provides clear visual confirmation during setup
+
+![Waiting - Empty Board](tests/output/leds/led_waiting_empty.png)
+![Waiting - Partial Setup](tests/output/leds/led_waiting_partial.png)
+![Waiting - Complete Setup](tests/output/leds/led_waiting_complete.png)
+
 ### TMC2208 Stepper Driver Configuration
 
 **Connection (Standalone Mode)**:
@@ -355,7 +384,7 @@ uv sync --extra dev
 
 ## Configuration
 
-Edit [config.py](config.py) to customize:
+Edit [src/config.py](src/config.py) to customize:
 
 **GPIO Pins**:
 - `MOTOR_X_STEP_PIN`, `MOTOR_X_DIR_PIN`, `MOTOR_Y_STEP_PIN`, `MOTOR_Y_DIR_PIN`
@@ -405,20 +434,20 @@ Edit [config.py](config.py) to customize:
 
 ```bash
 # Home all motors (must do this first!)
-python main.py home
+python src/main.py home
 
 # Demo mode - Execute calibration patterns (automatically homes first)
-python main.py demo                    # Run all patterns (square, diagonals, snake)
-python main.py demo --pattern square   # Just the board perimeter
-python main.py demo --pattern diagonals # Just the 4 major diagonals
-python main.py demo --pattern snake    # Just the snake pattern (all 64 squares)
-python main.py demo --no-home          # Skip auto-homing if already homed
+python src/main.py demo                    # Run all patterns (square, diagonals, snake)
+python src/main.py demo --pattern square   # Just the board perimeter
+python src/main.py demo --pattern diagonals # Just the 4 major diagonals
+python src/main.py demo --pattern snake    # Just the snake pattern (all 64 squares)
+python src/main.py demo --no-home          # Skip auto-homing if already homed
 
 # Move to absolute position (in steps)
-python main.py move 1000 2000
+python src/main.py move 1000 2000
 
 # Move relative to current position
-python main.py move-rel --dx 100 --dy -50
+python src/main.py move-rel --dx 100 --dy -50
 
 # Chess board navigation (via Python API)
 from board_navigation import square_to_steps, chess_notation_to_steps
@@ -433,28 +462,28 @@ x, y = square_to_steps(row=3, col=4)  # Same as e4
 controller.move_to(x, y)
 
 # Electromagnet control
-python main.py magnet-on       # Turn magnet on
-python main.py magnet-off      # Turn magnet off
-python main.py magnet-toggle   # Toggle magnet state
+python src/main.py magnet-on       # Turn magnet on
+python src/main.py magnet-off      # Turn magnet off
+python src/main.py magnet-toggle   # Toggle magnet state
 
 # Motor control
-python main.py motor-enable    # Enable motors (allows movement)
-python main.py motor-disable   # Disable motors (saves power, manual movement allowed)
+python src/main.py motor-enable    # Enable motors (allows movement)
+python src/main.py motor-disable   # Disable motors (saves power, manual movement allowed)
 
 # Reed switch commands (piece detection)
-python main.py reed-scan               # Single scan - show all occupied squares
-python main.py reed-scan --continuous  # Continuous monitoring (Ctrl+C to stop)
-python main.py reed-wait-move          # Wait for human player to make a move
-python main.py reed-test e4            # Test a specific square's sensor
+python src/main.py reed-scan               # Single scan - show all occupied squares
+python src/main.py reed-scan --continuous  # Continuous monitoring (Ctrl+C to stop)
+python src/main.py reed-wait-move          # Wait for human player to make a move
+python src/main.py reed-test e4            # Test a specific square's sensor
 
 # Get current position
-python main.py position
+python src/main.py position
 
 # Get detailed motor and magnet status
-python main.py status
+python src/main.py status
 
 # Emergency stop (also turns off magnet)
-python main.py stop
+python src/main.py stop
 ```
 
 ## Testing
@@ -485,7 +514,7 @@ pytest tests/test_board_navigation.py::test_snake_pattern_all_squares -v
 ### Interactive Mode
 
 ```bash
-python main.py interactive
+python src/main.py interactive
 
 # Commands:
 # home              - Home all motors
@@ -622,12 +651,23 @@ auto-chess-backend/
 │   ├── config.py                  # Configuration constants
 │   ├── board_navigation.py        # Chess coordinate conversion
 │   ├── demo_patterns.py           # Calibration patterns
-│   ├── reed_switch_controller.py  # Reed switch multiplexer control
-│   └── motor/
-│       ├── motor_controller.py    # Motor coordination
-│       ├── stepper_motor.py       # Individual motor control
-│       └── electromagnet.py       # Magnet control
-├── tests/                         # Test suite
+│   ├── motor/
+│   │   ├── motor_controller.py    # Motor coordination
+│   │   ├── stepper_motor.py       # Individual motor control
+│   │   └── electromagnet.py       # Magnet control
+│   ├── led/
+│   │   └── ws2812b_controller.py  # LED control and patterns
+│   ├── reed_switch/
+│   │   └── controller.py          # Reed switch multiplexer control
+│   └── chess_game/
+│       ├── game.py                # Chess rules and validation
+│       ├── piece.py               # Piece types and representation
+│       ├── player.py              # Player enum
+│       └── square.py              # Square representation
+├── tests/
+│   ├── fixtures/                  # Test fixtures and utilities
+│   ├── visualization/             # Board visualization utilities
+│   └── output/                    # Generated test visualizations
 ├── analysis/                      # Performance analysis
 ├── README.md                      # This file
 ├── AGENTS.md                      # Development notes

@@ -470,8 +470,8 @@ def test_mode_selection_no_pieces() -> None:
     b1_idx = controller.square_to_led_index(Square(0, 1))
     h1_idx = controller.square_to_led_index(Square(0, 7))
 
-    assert controller.strip.pixels[a1_idx] == (0, 0, 200), "a1 should be blue"
-    assert controller.strip.pixels[b1_idx] == (0, 150, 200), "b1 should be light blue"
+    assert controller.strip.pixels[a1_idx] == (0, 150, 200), "a1 should be light blue"
+    assert controller.strip.pixels[b1_idx] == (0, 0, 200), "b1 should be blue"
     assert controller.strip.pixels[h1_idx] == (0, 200, 0), "h1 should be green"
 
     # Verify some text squares are white (AvA text should be displayed)
@@ -481,7 +481,7 @@ def test_mode_selection_no_pieces() -> None:
 
 
 def test_mode_selection_one_piece() -> None:
-    """Test mode selection with a1 placed (PvA mode)."""
+    """Test mode selection with a1 placed (PvA mode, player white)."""
     controller = WS2812BController(use_mock=True)
 
     placed_squares = [Square(0, 0)]  # a1 placed
@@ -493,7 +493,28 @@ def test_mode_selection_one_piece() -> None:
     h1_idx = controller.square_to_led_index(Square(0, 7))
 
     assert controller.strip.pixels[a1_idx] == (200, 200, 200), "a1 should be white (selected)"
-    assert controller.strip.pixels[b1_idx] == (0, 150, 200), "b1 should be light blue"
+    assert controller.strip.pixels[b1_idx] == (0, 0, 200), "b1 should be blue"
+    assert controller.strip.pixels[h1_idx] == (0, 200, 0), "h1 should be green"
+
+    # Verify some text squares are white (PvA text should be displayed)
+    white_count = sum(1 for i in range(64) if controller.strip.pixels[i] == (200, 200, 200))
+    assert white_count > 0, "Should have white text squares for PvA"
+
+
+def test_mode_selection_one_piece_b1() -> None:
+    """Test mode selection with b1 placed (PvA mode, player black)."""
+    controller = WS2812BController(use_mock=True)
+
+    placed_squares = [Square(0, 1)]  # b1 placed
+    controller.show_mode_selection(placed_squares)
+
+    # Verify button colors
+    a1_idx = controller.square_to_led_index(Square(0, 0))
+    b1_idx = controller.square_to_led_index(Square(0, 1))
+    h1_idx = controller.square_to_led_index(Square(0, 7))
+
+    assert controller.strip.pixels[a1_idx] == (0, 150, 200), "a1 should be light blue"
+    assert controller.strip.pixels[b1_idx] == (200, 200, 200), "b1 should be white (selected)"
     assert controller.strip.pixels[h1_idx] == (0, 200, 0), "h1 should be green"
 
     # Verify some text squares are white (PvA text should be displayed)
@@ -598,7 +619,7 @@ def test_visualize_mode_selection_no_pieces() -> None:
 
 
 def test_visualize_mode_selection_one_piece() -> None:
-    """Visualize mode selection with a1 placed (PvA)."""
+    """Visualize mode selection with a1 placed (PvA, player white)."""
     controller = WS2812BController(use_mock=True)
 
     placed_squares = [Square(0, 0)]  # a1 placed
@@ -606,8 +627,22 @@ def test_visualize_mode_selection_one_piece() -> None:
 
     _draw_led_board(
         controller,
-        "Mode Selection: a1 Placed (a1=White, b1=Light Blue, h1=Green, Text=PvA)",
-        "led_mode_one_piece.png",
+        "Mode Selection: a1 Placed (Player vs AI - Player White)",
+        "led_mode_one_piece_a1.png",
+    )
+
+
+def test_visualize_mode_selection_one_piece_b1() -> None:
+    """Visualize mode selection with b1 placed (PvA, player black)."""
+    controller = WS2812BController(use_mock=True)
+
+    placed_squares = [Square(0, 1)]  # b1 placed
+    controller.show_mode_selection(placed_squares)
+
+    _draw_led_board(
+        controller,
+        "Mode Selection: b1 Placed (Player vs AI - Player Black)",
+        "led_mode_one_piece_b1.png",
     )
 
 
@@ -620,7 +655,7 @@ def test_visualize_mode_selection_two_pieces() -> None:
 
     _draw_led_board(
         controller,
-        "Mode Selection: a1,b1 Placed (a1=White, b1=White, h1=Green, Text=PvP)",
+        "Mode Selection: a1,b1 Placed (Player vs Player)",
         "led_mode_two_pieces.png",
     )
 

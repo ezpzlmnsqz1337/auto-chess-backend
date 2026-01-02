@@ -408,14 +408,15 @@ class WS2812BController:
         Display interactive mode selection screen.
 
         Mode buttons on row 0 (white's back rank):
-        - a1: Blue button (AvA mode) - Place piece here to select AI vs AI
-        - b1: Light blue button (PvA mode) - Place piece here after a1 to select Player vs AI
-        - h1: Green button (PvP mode) - Place piece here after a1,b1 to select Player vs Player
+        - a1: Light blue button - Player vs AI with player as WHITE
+        - b1: Blue button - Player vs AI with player as BLACK
+        - h1: Green button - Confirm and start game in selected mode
 
         Placed pieces show as white. Remaining board squares display mode text in white:
-        - No pieces: Display "AvA" (AI vs AI)
-        - a1 placed: Display "PvA" (Player vs AI)
-        - a1,b1 placed: Display "PvP" (Player vs Player)
+        - No pieces: Display "AA" (AI vs AI)
+        - Only a1: Display "PA" (Player vs AI, player is white)
+        - Only b1: Display "AP" (Player vs AI, player is black)
+        - Both a1 and b1: Display "PP" (Player vs Player)
 
         Args:
             placed_squares: List of squares where pieces have been placed
@@ -459,26 +460,32 @@ class WS2812BController:
         # Determine which mode is active based on placed pieces
         mode_text_squares = []
 
-        if a1 not in placed_squares:
-            # Show AA
+        a1_placed = a1 in placed_squares
+        b1_placed = b1 in placed_squares
+
+        if not a1_placed and not b1_placed:
+            # No pieces: Show AA (AI vs AI)
             mode_text_squares = letter_a + [(s[0], s[1] + 5) for s in letter_a]
-        elif b1 not in placed_squares:
-            # Show PA
+        elif a1_placed and b1_placed:
+            # Both pieces: Show PP (Player vs Player)
+            mode_text_squares = letter_p + [(s[0], s[1] + 5) for s in letter_p]
+        elif a1_placed:
+            # Only a1: Show PA (Player vs AI, player white)
             mode_text_squares = letter_p + [(s[0], s[1] + 5) for s in letter_a]
         else:
-            # Show PP
-            mode_text_squares = letter_p + [(s[0], s[1] + 5) for s in letter_p]
+            # Only b1: Show AP (Player vs AI, player black)
+            mode_text_squares = letter_a + [(s[0], s[1] + 5) for s in letter_p]
 
         # Set button colors
         if a1 in placed_squares:
             self.set_square_color(a1, (200, 200, 200))  # White (selected)
         else:
-            self.set_square_color(a1, (0, 0, 200))  # Blue (AvA button)
+            self.set_square_color(a1, (0, 150, 200))  # Light blue (white pieces)
 
         if b1 in placed_squares:
             self.set_square_color(b1, (200, 200, 200))  # White (selected)
         else:
-            self.set_square_color(b1, (0, 150, 200))  # Light blue (PvA button)
+            self.set_square_color(b1, (0, 0, 200))  # Blue (black pieces)
 
         if h1 in placed_squares:
             self.set_square_color(h1, (200, 200, 200))  # White (selected)
