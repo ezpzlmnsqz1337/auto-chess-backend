@@ -1,33 +1,35 @@
 """Compare leadscrew vs GT2 belt drive system performance."""
 
+from typing import Any
+
 import matplotlib.pyplot as plt
 import numpy as np
 
 # Configuration options
-configs = {
-    "Leadscrew (Current)": {
+configs: dict[str, dict[str, Any]] = {
+    "GT2 Belt (Current 100mm/s)": {
+        "steps_per_mm": 80.0,
+        "max_steps_per_sec": 8000,  # Current: 100 mm/s
+        "min_delay": 0.000125,
+        "color": "#2ecc71",
+    },
+    "Leadscrew (Old System)": {
         "steps_per_mm": 160.0,
         "max_steps_per_sec": 1250,
         "min_delay": 0.0008,
         "color": "#e74c3c",
     },
-    "GT2 Belt (Conservative)": {
+    "GT2 Belt (Conservative 25mm/s)": {
         "steps_per_mm": 80.0,
-        "max_steps_per_sec": 2000,
+        "max_steps_per_sec": 2000,  # 25 mm/s
         "min_delay": 0.0005,
         "color": "#3498db",
     },
-    "GT2 Belt (Marlin 60mm/s)": {
+    "GT2 Belt (Fast 150mm/s)": {
         "steps_per_mm": 80.0,
-        "max_steps_per_sec": 4800,  # 60 mm/s
-        "min_delay": 0.000208,
-        "color": "#2ecc71",
-    },
-    "GT2 Belt (Marlin 100mm/s)": {
-        "steps_per_mm": 80.0,
-        "max_steps_per_sec": 8000,  # 100 mm/s
-        "min_delay": 0.000125,
-        "color": "#9b59b6",
+        "max_steps_per_sec": 12000,  # 150 mm/s
+        "min_delay": 0.000083,
+        "color": "#f39c12",
     },
 }
 
@@ -41,11 +43,11 @@ MAX_STEP_DELAY = 0.004
 ACCELERATION_STEPS = 300
 
 
-def calculate_metrics(config_name: str, config: dict) -> dict:
+def calculate_metrics(config_name: str, config: dict[str, Any]) -> dict[str, float]:
     """Calculate performance metrics for a drive system."""
-    steps_per_mm = config["steps_per_mm"]
-    max_steps_per_sec = config["max_steps_per_sec"]
-    min_delay = config["min_delay"]
+    steps_per_mm = float(config["steps_per_mm"])
+    max_steps_per_sec = float(config["max_steps_per_sec"])
+    min_delay = float(config["min_delay"])
 
     # Speed calculations
     max_speed_mm_per_sec = max_steps_per_sec / steps_per_mm
@@ -69,11 +71,13 @@ def calculate_metrics(config_name: str, config: dict) -> dict:
     }
 
 
-def calculate_velocity_profile(config: dict, distance_mm: float) -> tuple[np.ndarray, np.ndarray]:
+def calculate_velocity_profile(
+    config: dict[str, Any], distance_mm: float
+) -> tuple[np.ndarray[Any, np.dtype[np.float64]], np.ndarray[Any, np.dtype[np.float64]]]:
     """Calculate velocity over time for a move with acceleration."""
-    steps_per_mm = config["steps_per_mm"]
+    steps_per_mm = float(config["steps_per_mm"])
     total_steps = int(distance_mm * steps_per_mm)
-    min_delay = config["min_delay"]
+    min_delay = float(config["min_delay"])
 
     accel_steps = min(ACCELERATION_STEPS, total_steps // 2)
 
@@ -113,7 +117,7 @@ def calculate_velocity_profile(config: dict, distance_mm: float) -> tuple[np.nda
     return np.array(times), np.array(velocities)
 
 
-def plot_comparison():
+def plot_comparison() -> None:
     """Create comprehensive comparison plots."""
     # Calculate metrics for all configs
     metrics = {name: calculate_metrics(name, config) for name, config in configs.items()}
@@ -179,7 +183,7 @@ def plot_comparison():
     # 4. Velocity profile for one square move
     ax = axes[1, 1]
     for name, config in configs.items():
-        times, velocities = calculate_velocity_profile(config, SQUARE_SIZE_MM)
+        times, velocities = calculate_velocity_profile(config, SQUARE_SIZE_MM)  # type: ignore[assignment]
         ax.plot(times, velocities, label=name, color=config["color"], linewidth=2)
 
     ax.set_xlabel("Time (seconds)", fontweight="bold")
@@ -189,8 +193,8 @@ def plot_comparison():
     ax.grid(alpha=0.3)
 
     plt.tight_layout()
-    plt.savefig("tests/output/drive_system_comparison.png", dpi=150, bbox_inches="tight")
-    print("✓ Saved: tests/output/drive_system_comparison.png")
+    plt.savefig("analysis/drive_system_comparison.png", dpi=150, bbox_inches="tight")
+    print("✓ Saved: analysis/drive_system_comparison.png")
 
     # Create detailed acceleration comparison
     fig, axes = plt.subplots(1, 2, figsize=(14, 5))
@@ -201,7 +205,7 @@ def plot_comparison():
     # Velocity vs time
     ax = axes[0]
     for name, config in configs.items():
-        times, velocities = calculate_velocity_profile(config, DIAGONAL_DISTANCE_MM / np.sqrt(2))
+        times, velocities = calculate_velocity_profile(config, DIAGONAL_DISTANCE_MM / np.sqrt(2))  # type: ignore[assignment]
         ax.plot(times, velocities, label=name, color=config["color"], linewidth=2)
 
     ax.set_xlabel("Time (seconds)", fontweight="bold")
@@ -213,7 +217,7 @@ def plot_comparison():
     # Distance vs time
     ax = axes[1]
     for name, config in configs.items():
-        times, velocities = calculate_velocity_profile(config, DIAGONAL_DISTANCE_MM / np.sqrt(2))
+        times, velocities = calculate_velocity_profile(config, DIAGONAL_DISTANCE_MM / np.sqrt(2))  # type: ignore[assignment]
         # Calculate distance by integrating velocity
         distances = np.zeros_like(times)
         for i in range(1, len(times)):
@@ -230,64 +234,68 @@ def plot_comparison():
     ax.axhline(BOARD_SIZE_MM, color="red", linestyle="--", alpha=0.3, label="Board width")
 
     plt.tight_layout()
-    plt.savefig("tests/output/acceleration_comparison.png", dpi=150, bbox_inches="tight")
-    print("✓ Saved: tests/output/acceleration_comparison.png")
+    plt.savefig("analysis/acceleration_comparison.png", dpi=150, bbox_inches="tight")
+    print("✓ Saved: analysis/acceleration_comparison.png")
 
     plt.show()
 
 
-def print_summary():
+def print_summary() -> None:
     """Print text summary of comparison."""
     print("\n" + "=" * 70)
-    print("DRIVE SYSTEM PERFORMANCE COMPARISON")
+    print("🏎️  DRIVE SYSTEM PERFORMANCE COMPARISON")
     print("=" * 70)
 
     for name, config in configs.items():
         metrics = calculate_metrics(name, config)
 
-        print(f"\n{name}:")
-        print("  Configuration:")
+        print(f"\n📊 {name}:")
+        print("  ⚙️  Configuration:")
         print(f"    - Steps/mm: {config['steps_per_mm']}")
         print(f"    - Max steps/s: {config['max_steps_per_sec']}")
-        print("\n  Performance:")
+        print("\n  🚀 Performance:")
         print(f"    - Max speed (single axis): {metrics['max_speed']:.2f} mm/s")
         print(f"    - Max speed (diagonal): {metrics['diagonal_speed']:.2f} mm/s")
-        print(f"    - Time per square: {metrics['time_per_square']:.2f}s")
-        print(f"    - Full diagonal: {metrics['full_diagonal_time']:.1f}s")
+        print(f"    - Time per square: {metrics['time_per_square']:.2f}s ⏱️")
+        print(f"    - Full diagonal: {metrics['full_diagonal_time']:.1f}s ⏱️")
         print(f"    - Accel distance: {metrics['accel_distance']:.1f}mm")
         print(f"    - Accel time: {metrics['accel_time']:.2f}s")
 
     print("\n" + "=" * 70)
-    print("SPEED IMPROVEMENTS:")
+    print("📈 SPEED IMPROVEMENTS:")
     print("=" * 70)
 
-    leadscrew = calculate_metrics("Leadscrew (Current)", configs["Leadscrew (Current)"])
-    gt2_std = calculate_metrics("GT2 Belt (Conservative)", configs["GT2 Belt (Conservative)"])
-    gt2_60 = calculate_metrics("GT2 Belt (Marlin 60mm/s)", configs["GT2 Belt (Marlin 60mm/s)"])
-    gt2_100 = calculate_metrics("GT2 Belt (Marlin 100mm/s)", configs["GT2 Belt (Marlin 100mm/s)"])
+    gt2_current = calculate_metrics("GT2 Belt (Current 100mm/s)", configs["GT2 Belt (Current 100mm/s)"])
+    leadscrew = calculate_metrics("Leadscrew (Old System)", configs["Leadscrew (Old System)"])
+    gt2_conservative = calculate_metrics("GT2 Belt (Conservative 25mm/s)", configs["GT2 Belt (Conservative 25mm/s)"])
+    gt2_fast = calculate_metrics("GT2 Belt (Fast 150mm/s)", configs["GT2 Belt (Fast 150mm/s)"])
 
-    print("\nGT2 Belt (Conservative) vs Leadscrew:")
-    print(f"  - Speed improvement: {gt2_std['max_speed'] / leadscrew['max_speed']:.2f}x faster")
-    print(f"  - Time reduction: {leadscrew['time_per_square'] / gt2_std['time_per_square']:.2f}x")
+    print("\n✅ GT2 Belt (Current 100mm/s) vs Leadscrew (Old):")
+    print(f"  - Speed improvement: {gt2_current['max_speed'] / leadscrew['max_speed']:.2f}x faster ⚡")
     print(
-        f"  - Full diagonal: {leadscrew['full_diagonal_time']:.1f}s → {gt2_std['full_diagonal_time']:.1f}s "
-        f"({leadscrew['full_diagonal_time'] - gt2_std['full_diagonal_time']:.1f}s saved)"
+        f"  - Time reduction: {leadscrew['time_per_square'] / gt2_current['time_per_square']:.2f}x"
+    )
+    print(
+        f"  - Full diagonal: {leadscrew['full_diagonal_time']:.1f}s → {gt2_current['full_diagonal_time']:.1f}s "
+        f"({leadscrew['full_diagonal_time'] - gt2_current['full_diagonal_time']:.1f}s saved) 💾"
     )
 
-    print("\nGT2 Belt (Marlin 60mm/s) vs Leadscrew:")
-    print(f"  - Speed improvement: {gt2_60['max_speed'] / leadscrew['max_speed']:.2f}x faster")
-    print(f"  - Time reduction: {leadscrew['time_per_square'] / gt2_60['time_per_square']:.2f}x")
+    print("\n🐢 GT2 Belt (Conservative 25mm/s) vs Current:")
+    print(f"  - Speed difference: {gt2_conservative['max_speed'] / gt2_current['max_speed']:.2f}x (slower)")
     print(
-        f"  - Full diagonal: {leadscrew['full_diagonal_time']:.1f}s → {gt2_60['full_diagonal_time']:.1f}s "
-        f"({leadscrew['full_diagonal_time'] - gt2_60['full_diagonal_time']:.1f}s saved)"
+        f"  - Time increase: {gt2_conservative['time_per_square'] / gt2_current['time_per_square']:.2f}x"
+    )
+    print(
+        f"  - Full diagonal: {gt2_current['full_diagonal_time']:.1f}s → {gt2_conservative['full_diagonal_time']:.1f}s "
+        f"({gt2_conservative['full_diagonal_time'] - gt2_current['full_diagonal_time']:.1f}s slower)"
     )
 
-    print("\nGT2 Belt (Marlin 100mm/s) vs Leadscrew:")
-    print(f"  - Speed improvement: {gt2_100['max_speed'] / leadscrew['max_speed']:.2f}x faster")
-    print(f"  - Time reduction: {leadscrew['time_per_square'] / gt2_100['time_per_square']:.2f}x")
+    print("\n🚀 GT2 Belt (Fast 150mm/s) vs Current:")
+    print(f"  - Speed improvement: {gt2_fast['max_speed'] / gt2_current['max_speed']:.2f}x faster ⚡")
+    print(f"  - Time reduction: {gt2_current['time_per_square'] / gt2_fast['time_per_square']:.2f}x")
     print(
-        f"  - Full diagonal: {leadscrew['full_diagonal_time']:.1f}s → {gt2_100['full_diagonal_time']:.1f}s "
-        f"({leadscrew['full_diagonal_time'] - gt2_100['full_diagonal_time']:.1f}s saved)"
+        f"  - Full diagonal: {gt2_current['full_diagonal_time']:.1f}s → {gt2_fast['full_diagonal_time']:.1f}s "
+        f"({gt2_current['full_diagonal_time'] - gt2_fast['full_diagonal_time']:.1f}s saved) 💾"
     )
 
     print("\n" + "=" * 70 + "\n")
