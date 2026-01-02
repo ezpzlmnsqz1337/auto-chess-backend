@@ -410,6 +410,9 @@ class WS2812BController:
         Mode buttons on row 0 (white's back rank):
         - a1: Light blue button - Player vs AI with player as WHITE
         - b1: Blue button - Player vs AI with player as BLACK
+        - d1: Yellow button - EASY difficulty (only when AI involved)
+        - e1: Orange button - MEDIUM difficulty (only when AI involved)
+        - f1: Red button - HARD difficulty (only when AI involved)
         - h1: Green button - Confirm and start game in selected mode
 
         Placed pieces show as white. Remaining board squares display mode text in white:
@@ -417,6 +420,12 @@ class WS2812BController:
         - Only a1: Display "PA" (Player vs AI, player is white)
         - Only b1: Display "AP" (Player vs AI, player is black)
         - Both a1 and b1: Display "PP" (Player vs Player)
+
+        Difficulty selection (only visible when AI is involved):
+        - No difficulty selected: RANDOM
+        - d1 selected: EASY
+        - e1 selected: MEDIUM
+        - f1 selected: HARD
 
         Args:
             placed_squares: List of squares where pieces have been placed
@@ -426,6 +435,9 @@ class WS2812BController:
         # Define button squares and their colors
         a1 = Square(0, 0)
         b1 = Square(0, 1)
+        d1 = Square(0, 3)
+        e1 = Square(0, 4)
+        f1 = Square(0, 5)
         h1 = Square(0, 7)
 
         # Letter patterns for mode text (rows 2-7, columns 1-6 for centered text)
@@ -452,9 +464,7 @@ class WS2812BController:
             (7, 0),
             (7, 1),
             (5, 1),
-            (5, 2),
             (6, 2),
-            (7, 2),
         ]
 
         # Determine which mode is active based on placed pieces
@@ -462,6 +472,12 @@ class WS2812BController:
 
         a1_placed = a1 in placed_squares
         b1_placed = b1 in placed_squares
+        d1_placed = d1 in placed_squares
+        e1_placed = e1 in placed_squares
+        f1_placed = f1 in placed_squares
+
+        # Check if AI is involved (any mode except PvP)
+        ai_involved = not (a1_placed and b1_placed)
 
         if not a1_placed and not b1_placed:
             # No pieces: Show AA (AI vs AI)
@@ -490,13 +506,45 @@ class WS2812BController:
         if h1 in placed_squares:
             self.set_square_color(h1, (200, 200, 200))  # White (selected)
         else:
-            self.set_square_color(h1, (0, 200, 0))  # Green (PvP button)
+            self.set_square_color(h1, (0, 200, 0))  # Green (confirm button)
+
+        # Show difficulty selection buttons only when AI is involved
+        if ai_involved:
+            # Only allow one difficulty to be selected at a time
+            # If multiple are "placed", only the last one in priority (f1 > e1 > d1) is active
+            if f1_placed:
+                d1_active, e1_active, f1_active = False, False, True
+            elif e1_placed:
+                d1_active, e1_active, f1_active = False, True, False
+            elif d1_placed:
+                d1_active, e1_active, f1_active = True, False, False
+            else:
+                d1_active, e1_active, f1_active = False, False, False
+
+            # d1: EASY difficulty (yellow)
+            if d1_active:
+                self.set_square_color(d1, (200, 200, 200))  # White (selected)
+            else:
+                self.set_square_color(d1, (200, 200, 0))  # Yellow
+
+            # e1: MEDIUM difficulty (orange)
+            if e1_active:
+                self.set_square_color(e1, (200, 200, 200))  # White (selected)
+            else:
+                self.set_square_color(e1, (200, 100, 0))  # Orange
+
+            # f1: HARD difficulty (red)
+            if f1_active:
+                self.set_square_color(f1, (200, 200, 200))  # White (selected)
+            else:
+                self.set_square_color(f1, (200, 0, 0))  # Red
 
         # Draw mode text in white
         for row, col in mode_text_squares:
             if 0 <= row < 8 and 0 <= col < 8:
                 square = Square(row, col)
-                if square not in [a1, b1, h1]:  # Don't override buttons
+                # Don't override button squares
+                if square not in [a1, b1, d1, e1, f1, h1]:
                     self.set_square_color(square, (200, 200, 200))  # White text
 
         self.show()
