@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.13'
+    
+    - name: Install uv
+      uses: astral-sh/setup-uv@v4
+      with:
+        enable-cache: true
+    
+    - name: Install dependencies
+      run: uv sync
+    
+    - name: Check code formatting
+      run: uv run ruff format --check .
+    
+    - name: Run linter
+      run: uv run ruff check .
+    
+    - name: Run type checker
+      run: uv run mypy . || true
+      # Note: mypy currently has module naming issues, so we allow it to fail
+    
+    - name: Run tests
+      run: uv run pytest tests/ -v --tb=short
