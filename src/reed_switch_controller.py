@@ -196,6 +196,7 @@ class ReedSwitchController:
         """Wait for a human player to make a move.
 
         Detects a piece being picked up (removed) and then placed (added).
+        If the piece is placed back on the same square, it continues waiting.
 
         Args:
             timeout: Maximum time to wait in seconds
@@ -222,6 +223,13 @@ class ReedSwitchController:
                 # Piece placed
                 to_square = added[0]
                 row, col = to_square
+
+                # Check if piece was placed back on the same square
+                if to_square == from_square:
+                    print(f"↩️  Piece returned to {chr(97 + col)}{row + 1} - move cancelled")
+                    from_square = None  # Reset and continue waiting
+                    continue
+
                 print(f"✅ Piece placed at {chr(97 + col)}{row + 1}")
                 return from_square, to_square
 
