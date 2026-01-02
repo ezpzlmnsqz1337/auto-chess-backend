@@ -4,8 +4,8 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 
-from src import config
-from src.demo_patterns import get_diagonal_patterns, get_edge_square_pattern, get_snake_pattern
+import config
+from demo_patterns import get_diagonal_patterns, get_edge_square_pattern, get_snake_pattern
 from tests.test_utils import (
     capture_movement_path,
     create_test_controller,

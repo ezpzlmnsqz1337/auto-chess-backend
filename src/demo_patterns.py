@@ -3,8 +3,8 @@
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-from src import config
-from src.board_navigation import square_to_steps
+import config
+from board_navigation import square_to_steps
 
 if TYPE_CHECKING:
     from motor import MotorController

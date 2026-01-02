@@ -7,7 +7,7 @@ import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import pytest
 
-from src.reed_switch_controller import ReedSwitchController
+from reed_switch_controller import ReedSwitchController
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes

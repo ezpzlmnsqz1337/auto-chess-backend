@@ -11,9 +11,9 @@ import click
 from gpiozero import Device
 from gpiozero.pins.mock import MockFactory
 
-from src import config
-from src.motor import Electromagnet, MotorController, StepperMotor
-from src.reed_switch_controller import ReedSwitchController
+import config
+from motor import Electromagnet, MotorController, StepperMotor
+from reed_switch_controller import ReedSwitchController
 
 # Use mock pin factory if no real GPIO hardware is available
 try:

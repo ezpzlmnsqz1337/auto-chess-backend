@@ -6,6 +6,7 @@ from pathlib import Path
 
 import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
+from matplotlib.figure import Figure
 
 from chess_game import ChessGame, PieceType, Player, Square
 
@@ -19,7 +20,7 @@ def _draw_chess_board(
     title: str,
     highlighted_squares: dict[Square, tuple[int, int, int]] | None = None,
     show_legal_moves: Square | None = None,
-) -> None:
+) -> Figure:
     """Draw a chess board with pieces and optional highlights."""
     fig, ax = plt.subplots(figsize=(8, 8))
 
@@ -95,25 +96,34 @@ def _draw_chess_board(
     return fig
 
 
-def test_initial_position():
+def test_initial_position() -> None:
     """Test that the game starts with standard chess position."""
     game = ChessGame()
 
     # Check white pieces
-    assert game.get_piece(Square.from_notation("e1")).piece_type == PieceType.KING
-    assert game.get_piece(Square.from_notation("d1")).piece_type == PieceType.QUEEN
-    assert game.get_piece(Square.from_notation("a1")).piece_type == PieceType.ROOK
-    assert game.get_piece(Square.from_notation("b1")).piece_type == PieceType.KNIGHT
-    assert game.get_piece(Square.from_notation("c1")).piece_type == PieceType.BISHOP
+    e1_piece = game.get_piece(Square.from_notation("e1"))
+    assert e1_piece is not None and e1_piece.piece_type == PieceType.KING
+    d1_piece = game.get_piece(Square.from_notation("d1"))
+    assert d1_piece is not None and d1_piece.piece_type == PieceType.QUEEN
+    a1_piece = game.get_piece(Square.from_notation("a1"))
+    assert a1_piece is not None and a1_piece.piece_type == PieceType.ROOK
+    b1_piece = game.get_piece(Square.from_notation("b1"))
+    assert b1_piece is not None and b1_piece.piece_type == PieceType.KNIGHT
+    c1_piece = game.get_piece(Square.from_notation("c1"))
+    assert c1_piece is not None and c1_piece.piece_type == PieceType.BISHOP
 
     # Check black pieces
-    assert game.get_piece(Square.from_notation("e8")).piece_type == PieceType.KING
-    assert game.get_piece(Square.from_notation("d8")).piece_type == PieceType.QUEEN
+    e8_piece = game.get_piece(Square.from_notation("e8"))
+    assert e8_piece is not None and e8_piece.piece_type == PieceType.KING
+    d8_piece = game.get_piece(Square.from_notation("d8"))
+    assert d8_piece is not None and d8_piece.piece_type == PieceType.QUEEN
 
     # Check pawns
     for file in "abcdefgh":
-        assert game.get_piece(Square.from_notation(f"{file}2")).piece_type == PieceType.PAWN
-        assert game.get_piece(Square.from_notation(f"{file}7")).piece_type == PieceType.PAWN
+        pawn2 = game.get_piece(Square.from_notation(f"{file}2"))
+        assert pawn2 is not None and pawn2.piece_type == PieceType.PAWN
+        pawn7 = game.get_piece(Square.from_notation(f"{file}7"))
+        assert pawn7 is not None and pawn7.piece_type == PieceType.PAWN
 
     # Check empty squares
     for file in "abcdefgh":
@@ -123,7 +133,7 @@ def test_initial_position():
     assert game.current_player == Player.WHITE
 
 
-def test_visualize_starting_position():
+def test_visualize_starting_position() -> None:
     """Generate a visualization of the starting chess position."""
     game = ChessGame()
 
@@ -132,7 +142,7 @@ def test_visualize_starting_position():
     plt.close(fig)
 
 
-def test_pawn_moves():
+def test_pawn_moves() -> None:
     """Test pawn movement rules."""
     game = ChessGame()
 
@@ -149,7 +159,7 @@ def test_pawn_moves():
     assert game.current_player == Player.BLACK
 
 
-def test_knight_moves():
+def test_knight_moves() -> None:
     """Test knight movement in L-shape."""
     game = ChessGame()
 
@@ -160,7 +170,7 @@ def test_knight_moves():
     assert len(b1_knight_moves) == 2
 
 
-def test_visualize_knight_moves():
+def test_visualize_knight_moves() -> None:
     """Visualize legal knight moves from starting position."""
     game = ChessGame()
 
@@ -184,7 +194,7 @@ def test_visualize_knight_moves():
     plt.close(fig)
 
 
-def test_pawn_capture():
+def test_pawn_capture() -> None:
     """Test that pawns can capture diagonally."""
     game = ChessGame()
 
@@ -200,11 +210,13 @@ def test_pawn_capture():
     assert game.make_move(Square.from_notation("e4"), Square.from_notation("d5"))
 
     # Pawn should be on d5, black pawn removed
-    assert game.get_piece(Square.from_notation("d5")).piece_type == PieceType.PAWN
-    assert game.get_piece(Square.from_notation("d5")).player == Player.WHITE
+    d5_piece = game.get_piece(Square.from_notation("d5"))
+    assert d5_piece is not None
+    assert d5_piece.piece_type == PieceType.PAWN
+    assert d5_piece.player == Player.WHITE
 
 
-def test_en_passant():
+def test_en_passant() -> None:
     """Test en passant capture."""
     game = ChessGame()
 
@@ -226,12 +238,14 @@ def test_en_passant():
     assert game.make_move(Square.from_notation("e5"), Square.from_notation("d6"))
 
     # White pawn should be on d6, black pawn on d5 should be removed
-    assert game.get_piece(Square.from_notation("d6")).piece_type == PieceType.PAWN
-    assert game.get_piece(Square.from_notation("d6")).player == Player.WHITE
+    d6_piece = game.get_piece(Square.from_notation("d6"))
+    assert d6_piece is not None
+    assert d6_piece.piece_type == PieceType.PAWN
+    assert d6_piece.player == Player.WHITE
     assert game.get_piece(Square.from_notation("d5")) is None
 
 
-def test_castling_kingside():
+def test_castling_kingside() -> None:
     """Test kingside castling."""
     game = ChessGame()
 
@@ -247,11 +261,13 @@ def test_castling_kingside():
     assert game.make_move(Square.from_notation("e1"), Square.from_notation("g1"))
 
     # King should be on g1, rook should be on f1
-    assert game.get_piece(Square.from_notation("g1")).piece_type == PieceType.KING
-    assert game.get_piece(Square.from_notation("f1")).piece_type == PieceType.ROOK
+    g1_piece = game.get_piece(Square.from_notation("g1"))
+    assert g1_piece is not None and g1_piece.piece_type == PieceType.KING
+    f1_piece = game.get_piece(Square.from_notation("f1"))
+    assert f1_piece is not None and f1_piece.piece_type == PieceType.ROOK
 
 
-def test_castling_queenside():
+def test_castling_queenside() -> None:
     """Test queenside castling."""
     game = ChessGame()
 
@@ -268,11 +284,13 @@ def test_castling_queenside():
     assert game.make_move(Square.from_notation("e1"), Square.from_notation("c1"))
 
     # King should be on c1, rook should be on d1
-    assert game.get_piece(Square.from_notation("c1")).piece_type == PieceType.KING
-    assert game.get_piece(Square.from_notation("d1")).piece_type == PieceType.ROOK
+    c1_piece = game.get_piece(Square.from_notation("c1"))
+    assert c1_piece is not None and c1_piece.piece_type == PieceType.KING
+    d1_piece = game.get_piece(Square.from_notation("d1"))
+    assert d1_piece is not None and d1_piece.piece_type == PieceType.ROOK
 
 
-def test_check_detection():
+def test_check_detection() -> None:
     """Test that check is properly detected."""
     # Create a new game with simplified position
     game = ChessGame()
@@ -291,7 +309,7 @@ def test_check_detection():
     assert game.is_in_check(Player.BLACK)
 
 
-def test_visualize_check():
+def test_visualize_check() -> None:
     """Visualize a check position."""
     game = ChessGame()
     game.board = {}
@@ -315,7 +333,7 @@ def test_visualize_check():
     plt.close(fig)
 
 
-def test_cannot_move_into_check():
+def test_cannot_move_into_check() -> None:
     """Test that king cannot move into check."""
     game = ChessGame()
     game.board = {}
@@ -332,7 +350,7 @@ def test_cannot_move_into_check():
     assert Square.from_notation("e2") not in king_moves
 
 
-def test_scholar_mate():
+def test_scholar_mate() -> None:
     """Test Scholar's Mate (4-move checkmate)."""
     game = ChessGame()
 
@@ -355,7 +373,7 @@ def test_scholar_mate():
     assert game.is_checkmate()
 
 
-def test_visualize_scholar_mate():
+def test_visualize_scholar_mate() -> None:
     """Visualize Scholar's Mate checkmate position."""
     game = ChessGame()
 
@@ -379,7 +397,7 @@ def test_visualize_scholar_mate():
     plt.close(fig)
 
 
-def test_stalemate():
+def test_stalemate() -> None:
     """Test stalemate detection."""
     game = ChessGame()
     game.board = {}
@@ -400,7 +418,7 @@ def test_stalemate():
     assert game.is_stalemate()
 
 
-def test_piece_movement_bishop():
+def test_piece_movement_bishop() -> None:
     """Test bishop diagonal movement."""
     game = ChessGame()
 
@@ -415,7 +433,7 @@ def test_piece_movement_bishop():
     assert Square.from_notation("f4") in bishop_moves
 
 
-def test_piece_movement_rook():
+def test_piece_movement_rook() -> None:
     """Test rook orthogonal movement."""
     game = ChessGame()
 
@@ -428,7 +446,7 @@ def test_piece_movement_rook():
     assert Square.from_notation("a3") in rook_moves
 
 
-def test_piece_movement_queen():
+def test_piece_movement_queen() -> None:
     """Test queen moves in all directions."""
     game = ChessGame()
     game.board = {}
@@ -454,7 +472,7 @@ def test_piece_movement_queen():
     # Note: a1 has white king, so queen can't go there
 
 
-def test_invalid_moves():
+def test_invalid_moves() -> None:
     """Test that invalid moves are rejected."""
     game = ChessGame()
 
@@ -468,7 +486,7 @@ def test_invalid_moves():
     assert not game.make_move(Square.from_notation("e2"), Square.from_notation("f2"))
 
 
-def test_square_notation_conversion():
+def test_square_notation_conversion() -> None:
     """Test square notation conversion."""
     square = Square.from_notation("e4")
     assert square.row == 3

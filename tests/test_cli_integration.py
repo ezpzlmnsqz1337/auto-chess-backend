@@ -6,7 +6,7 @@ from collections.abc import Generator
 import pytest
 from click.testing import CliRunner
 
-from src.main import cli
+from main import cli
 
 
 @pytest.fixture

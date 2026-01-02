@@ -15,7 +15,7 @@ except ImportError:
     Device.pin_factory = MockFactory()
     from gpiozero import DigitalInputDevice, DigitalOutputDevice
 
-from src import config
+import config
 
 
 class ReedSwitchController:
