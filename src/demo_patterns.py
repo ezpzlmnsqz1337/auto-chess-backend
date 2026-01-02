@@ -7,7 +7,7 @@ import config
 from board_navigation import square_to_steps
 
 if TYPE_CHECKING:
-    from motor_controller import MotorController
+    from motor import MotorController
 
 
 def get_edge_square_pattern() -> list[tuple[int, int]]:

@@ -1,6 +1,6 @@
 """Test utilities for motor controller testing and visualization."""
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from unittest.mock import patch
 
 import matplotlib.patches as mpatches
@@ -9,7 +9,7 @@ import numpy as np
 from matplotlib.collections import LineCollection
 
 import config
-from motor_controller import MotorController, StepperMotor
+from motor import MotorController, StepperMotor
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
@@ -22,27 +22,8 @@ def create_test_controller() -> MotorController:
     Returns:
         Configured MotorController ready for testing
     """
-    motor_x = StepperMotor(
-        step_pin=config.MOTOR_X_STEP_PIN,
-        dir_pin=config.MOTOR_X_DIR_PIN,
-        home_pin=config.MOTOR_X_HOME_PIN,
-        enable_pin=config.MOTOR_X_ENABLE_PIN,
-        invert_direction=config.MOTOR_X_INVERT,
-        max_position=config.MAX_X_POSITION,
-        step_delay=config.STEP_DELAY,
-        step_pulse_duration=config.STEP_PULSE_DURATION,
-    )
-
-    motor_y = StepperMotor(
-        step_pin=config.MOTOR_Y_STEP_PIN,
-        dir_pin=config.MOTOR_Y_DIR_PIN,
-        home_pin=config.MOTOR_Y_HOME_PIN,
-        enable_pin=config.MOTOR_Y_ENABLE_PIN,
-        invert_direction=config.MOTOR_Y_INVERT,
-        max_position=config.MAX_Y_POSITION,
-        step_delay=config.STEP_DELAY,
-        step_pulse_duration=config.STEP_PULSE_DURATION,
-    )
+    motor_x = create_test_motor("X")
+    motor_y = create_test_motor("Y")
 
     controller = MotorController(
         motor_x,
@@ -56,6 +37,53 @@ def create_test_controller() -> MotorController:
     controller.motor_x.is_homed = True
     controller.motor_y.is_homed = True
     return controller
+
+
+def create_test_motor(
+    axis: str = "X", max_position: int | None = None, **kwargs: Any
+) -> StepperMotor:
+    """
+    Create a single motor for testing with mock GPIO.
+
+    Args:
+        axis: "X" or "Y" to select motor configuration
+        max_position: Override max_position (useful for fast tests)
+        **kwargs: Additional StepperMotor parameters to override
+
+    Returns:
+        Configured StepperMotor ready for testing
+    """
+    if axis.upper() == "X":
+        defaults: dict[str, Any] = {
+            "step_pin": config.MOTOR_X_STEP_PIN,
+            "dir_pin": config.MOTOR_X_DIR_PIN,
+            "home_pin": config.MOTOR_X_HOME_PIN,
+            "enable_pin": config.MOTOR_X_ENABLE_PIN,
+            "invert_direction": config.MOTOR_X_INVERT,
+            "max_position": max_position or config.MAX_X_POSITION,
+        }
+    else:  # Y axis
+        defaults = {
+            "step_pin": config.MOTOR_Y_STEP_PIN,
+            "dir_pin": config.MOTOR_Y_DIR_PIN,
+            "home_pin": config.MOTOR_Y_HOME_PIN,
+            "enable_pin": config.MOTOR_Y_ENABLE_PIN,
+            "invert_direction": config.MOTOR_Y_INVERT,
+            "max_position": max_position or config.MAX_Y_POSITION,
+        }
+
+    # Add common defaults
+    defaults.update(
+        {
+            "step_delay": config.STEP_DELAY,
+            "step_pulse_duration": config.STEP_PULSE_DURATION,
+        }
+    )
+
+    # Override with any provided kwargs
+    defaults.update(kwargs)
+
+    return StepperMotor(**defaults)
 
 
 def capture_movement_path(
@@ -138,8 +166,8 @@ def capture_movement_path(
             record_sample()
             last_sampled_step[0] = step_counter[0]
 
-    # Mock time.sleep in motor_controller module to make tests instant
-    with patch("motor_controller.time.sleep"):
+    # Mock time.sleep in motor.stepper_motor module to make tests instant
+    with patch("motor.stepper_motor.time.sleep"):
         # Replace _pulse_step methods with tracked versions
         controller.motor_x._pulse_step = tracked_pulse_x
         controller.motor_y._pulse_step = tracked_pulse_y

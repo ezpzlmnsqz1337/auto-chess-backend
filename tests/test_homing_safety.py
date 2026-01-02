@@ -4,23 +4,16 @@ from unittest.mock import patch
 
 import pytest
 
-import config
-from motor_controller import StepperMotor
+from .test_utils import create_test_motor
 
 
 def test_homing_exceeds_max_position() -> None:
     """Test that homing throws an error when it exceeds MAX_X_POSITION without hitting endstop."""
+    # Use small max position for fast testing
+    test_max_position = 100
+
     # Create a motor with actual GPIO mocking
-    motor = StepperMotor(
-        step_pin=config.MOTOR_X_STEP_PIN,
-        dir_pin=config.MOTOR_X_DIR_PIN,
-        home_pin=config.MOTOR_X_HOME_PIN,
-        enable_pin=config.MOTOR_X_ENABLE_PIN,
-        invert_direction=config.MOTOR_X_INVERT,
-        max_position=config.MAX_X_POSITION,
-        step_delay=config.STEP_DELAY,
-        step_pulse_duration=config.STEP_PULSE_DURATION,
-    )
+    motor = create_test_motor("X", max_position=test_max_position)
 
     # Track how many steps were actually taken
     step_count = [0]
@@ -59,8 +52,8 @@ def test_homing_exceeds_max_position() -> None:
         Device.pin_factory = original_pin_factory
 
     # Verify that it stopped at exactly max_position steps (not beyond)
-    assert step_count[0] == config.MAX_X_POSITION, (
-        f"Expected exactly {config.MAX_X_POSITION} steps, "
+    assert step_count[0] == test_max_position, (
+        f"Expected exactly {test_max_position} steps, "
         f"but took {step_count[0]} steps during homing"
     )
 
@@ -69,26 +62,20 @@ def test_homing_exceeds_max_position() -> None:
 
     print(
         f"✓ Homing safety test passed - stopped at {step_count[0]} steps "
-        f"(max: {config.MAX_X_POSITION})"
+        f"(max: {test_max_position})"
     )
 
 
 def test_homing_success_within_limits() -> None:
     """Test that homing succeeds when endstop is triggered before max_position."""
-    motor = StepperMotor(
-        step_pin=config.MOTOR_X_STEP_PIN,
-        dir_pin=config.MOTOR_X_DIR_PIN,
-        home_pin=config.MOTOR_X_HOME_PIN,
-        enable_pin=config.MOTOR_X_ENABLE_PIN,
-        invert_direction=config.MOTOR_X_INVERT,
-        max_position=config.MAX_X_POSITION,
-        step_delay=config.STEP_DELAY,
-        step_pulse_duration=config.STEP_PULSE_DURATION,
-    )
+    # Use small max position for fast testing
+    test_max_position = 100
+    trigger_at_step = 50  # Trigger endstop halfway
+
+    motor = create_test_motor("X", max_position=test_max_position)
 
     # Track steps taken
     step_count = [0]
-    trigger_at_step = 1000  # Trigger endstop after 1000 steps
 
     original_pulse = motor._pulse_step
 
@@ -131,16 +118,10 @@ def test_homing_success_within_limits() -> None:
 
 def test_homing_y_axis_exceeds_max_position() -> None:
     """Test that Y axis homing also respects MAX_Y_POSITION safety limit."""
-    motor_y = StepperMotor(
-        step_pin=config.MOTOR_Y_STEP_PIN,
-        dir_pin=config.MOTOR_Y_DIR_PIN,
-        home_pin=config.MOTOR_Y_HOME_PIN,
-        enable_pin=config.MOTOR_Y_ENABLE_PIN,
-        invert_direction=config.MOTOR_Y_INVERT,
-        max_position=config.MAX_Y_POSITION,
-        step_delay=config.STEP_DELAY,
-        step_pulse_duration=config.STEP_PULSE_DURATION,
-    )
+    # Use small max position for fast testing
+    test_max_position = 100
+
+    motor_y = create_test_motor("Y", max_position=test_max_position)
 
     step_count = [0]
     original_pulse = motor_y._pulse_step
@@ -175,13 +156,13 @@ def test_homing_y_axis_exceeds_max_position() -> None:
         Device.pin_factory = original_pin_factory
 
     # Verify it stopped at exactly max_position
-    assert step_count[0] == config.MAX_Y_POSITION, (
-        f"Y axis: Expected exactly {config.MAX_Y_POSITION} steps, but took {step_count[0]} steps"
+    assert step_count[0] == test_max_position, (
+        f"Y axis: Expected exactly {test_max_position} steps, but took {step_count[0]} steps"
     )
 
     assert not motor_y.is_homed, "Y motor should not be marked as homed after failed homing"
 
     print(
         f"✓ Y axis homing safety test passed - stopped at {step_count[0]} steps "
-        f"(max: {config.MAX_Y_POSITION})"
+        f"(max: {test_max_position})"
     )
