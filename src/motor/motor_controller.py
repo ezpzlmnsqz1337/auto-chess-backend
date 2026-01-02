@@ -128,13 +128,9 @@ class MotorController:
 
         # Execute Bresenham algorithm
         if abs_dx > abs_dy:
-            self._execute_x_dominant_move(
-                abs_dx, abs_dy, x_dir, y_dir, diagonal_speed_boost
-            )
+            self._execute_x_dominant_move(abs_dx, abs_dy, x_dir, y_dir, diagonal_speed_boost)
         else:
-            self._execute_y_dominant_move(
-                abs_dx, abs_dy, x_dir, y_dir, diagonal_speed_boost
-            )
+            self._execute_y_dominant_move(abs_dx, abs_dy, x_dir, y_dir, diagonal_speed_boost)
 
         # Restore original step delays
         self.motor_x.step_delay = original_x_delay
@@ -166,13 +162,9 @@ class MotorController:
         target_y = self.motor_y.current_position + dy
 
         if target_x < 0 or target_x > self.motor_x.max_position:
-            raise ValueError(
-                f"X target {target_x} out of bounds (0-{self.motor_x.max_position})"
-            )
+            raise ValueError(f"X target {target_x} out of bounds (0-{self.motor_x.max_position})")
         if target_y < 0 or target_y > self.motor_y.max_position:
-            raise ValueError(
-                f"Y target {target_y} out of bounds (0-{self.motor_y.max_position})"
-            )
+            raise ValueError(f"Y target {target_y} out of bounds (0-{self.motor_y.max_position})")
 
         # Set directions
         self.motor_x._set_direction(x_dir)

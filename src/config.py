@@ -100,3 +100,34 @@ ELECTROMAGNET_PIN = 25
 # True = magnet ON when GPIO is HIGH (default for NPN transistor)
 # False = magnet ON when GPIO is LOW (for PNP or active-low relay)
 ELECTROMAGNET_ACTIVE_HIGH = True
+
+# Reed Switch Multiplexer Configuration
+# 64 reed switches (one under each square) connected via 4× CD74HC4067 multiplexers
+# Each multiplexer handles 16 channels (2 rows of the chess board)
+
+# Multiplexer address pins (shared across all 4 multiplexers)
+MUX_S0_PIN = 12  # Address bit 0
+MUX_S1_PIN = 16  # Address bit 1
+MUX_S2_PIN = 20  # Address bit 2
+MUX_S3_PIN = 21  # Address bit 3
+
+# Multiplexer signal pins (one per multiplexer)
+MUX_SIG_PINS = [
+    13,  # Mux 1: rows 1-2 (a1-h1, a2-h2)
+    19,  # Mux 2: rows 3-4 (a3-h3, a4-h4)
+    26,  # Mux 3: rows 5-6 (a5-h5, a6-h6)
+    4,  # Mux 4: rows 7-8 (a7-h7, a8-h8)
+]
+
+# Reed switch scan rate (scans per second)
+# Higher = more responsive but more CPU usage
+# 10-50 Hz is usually sufficient for human moves
+REED_SWITCH_SCAN_RATE = 20  # Hz
+
+# Debounce settings
+# Time to wait before confirming a piece placement/removal (seconds)
+REED_SWITCH_DEBOUNCE_TIME = 0.1  # 100ms
+
+# Move detection timeout
+# Maximum time to wait for a move to complete (piece picked up then placed)
+MOVE_DETECTION_TIMEOUT = 30.0  # 30 seconds

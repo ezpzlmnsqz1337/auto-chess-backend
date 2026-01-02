@@ -12,6 +12,7 @@ from gpiozero.pins.mock import MockFactory
 
 from src import config
 from src.motor import Electromagnet, MotorController, StepperMotor
+from src.reed_switch_controller import ReedSwitchController
 
 # Use mock pin factory if no real GPIO hardware is available
 try:
@@ -229,6 +230,106 @@ def motor_disable(ctx: click.Context) -> None:
     except Exception as e:
         click.echo(f"Error: {e}", err=True)
         sys.exit(1)
+
+
+@cli.command("reed-scan")
+@click.option("--continuous", "-c", is_flag=True, help="Continuously scan and display changes")
+@click.option("--rate", "-r", type=int, default=5, help="Scans per second for continuous mode")
+def reed_scan(continuous: bool, rate: int) -> None:
+    """Scan reed switches to detect piece positions."""
+    reed = ReedSwitchController()
+    try:
+        if continuous:
+            click.echo(f"📡 Continuous scanning at {rate} Hz. Press Ctrl+C to stop.\n")
+            scan_interval = 1.0 / rate
+            previous_state = [False] * 64
+
+            while True:
+                current_state = reed.scan_with_debounce()
+
+                # Check for changes
+                changes = []
+                for i in range(64):
+                    if current_state[i] != previous_state[i]:
+                        row, col = reed._index_to_square(i)
+                        square = f"{chr(97 + col)}{row + 1}"
+                        if current_state[i]:
+                            changes.append(f"✅ {square} occupied")
+                        else:
+                            changes.append(f"❌ {square} empty")
+
+                if changes:
+                    for change in changes:
+                        click.echo(change)
+
+                previous_state = current_state
+                click.pause(scan_interval)
+        else:
+            # Single scan
+            reed.scan_with_debounce()
+            occupied = reed.get_occupied_squares()
+            click.echo(f"\n📊 Board state ({len(occupied)} pieces detected):\n")
+            click.echo(reed.get_board_state_fen_like())
+
+            if occupied:
+                click.echo("\n✅ Occupied squares:")
+                for row, col in occupied:
+                    square = f"{chr(97 + col)}{row + 1}"
+                    click.echo(f"  - {square}")
+    except KeyboardInterrupt:
+        click.echo("\n\n⏹️  Scanning stopped")
+    finally:
+        reed.close()
+
+
+@cli.command("reed-wait-move")
+@click.option("--timeout", "-t", type=float, default=30.0, help="Timeout in seconds")
+def reed_wait_move(timeout: float) -> None:
+    """Wait for a human player to make a move."""
+    reed = ReedSwitchController()
+    try:
+        result = reed.wait_for_move(timeout)
+        if result:
+            from_square, to_square = result
+            from_sq = f"{chr(97 + from_square[1])}{from_square[0] + 1}"
+            to_sq = f"{chr(97 + to_square[1])}{to_square[0] + 1}"
+            click.echo(f"\n🎯 Move detected: {from_sq} → {to_sq}")
+        else:
+            click.echo("\n⏱️ Timeout - no move detected")
+            sys.exit(1)
+    except KeyboardInterrupt:
+        click.echo("\n\n⏹️  Move detection cancelled")
+        sys.exit(1)
+    finally:
+        reed.close()
+
+
+@cli.command("reed-test")
+@click.argument("square", type=str)
+def reed_test(square: str) -> None:
+    """Test a specific square's reed switch (e.g., 'e4', 'a1')."""
+    if len(square) != 2 or square[0] not in "abcdefgh" or square[1] not in "12345678":
+        click.echo("❌ Invalid square format. Use notation like 'e4', 'a1', 'h8'")
+        sys.exit(1)
+
+    col = ord(square[0]) - 97  # a=0, b=1, ..., h=7
+    row = int(square[1]) - 1  # 1=0, 2=1, ..., 8=7
+
+    reed = ReedSwitchController()
+    try:
+        click.echo(f"🔍 Testing square {square} (row={row}, col={col})...")
+        click.echo("Place a magnetic piece on the square and remove it repeatedly.\n")
+
+        for _ in range(20):
+            state = reed.read_square(row, col)
+            symbol = "🟢" if state else "⚫"
+            click.echo(f"{symbol} {square}: {'OCCUPIED' if state else 'EMPTY'}")
+            click.pause(0.2)
+
+    except KeyboardInterrupt:
+        click.echo("\n\n⏹️  Test stopped")
+    finally:
+        reed.close()
 
 
 @cli.command()

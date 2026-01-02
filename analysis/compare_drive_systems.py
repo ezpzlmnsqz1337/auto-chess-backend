@@ -265,13 +265,19 @@ def print_summary() -> None:
     print("📈 SPEED IMPROVEMENTS:")
     print("=" * 70)
 
-    gt2_current = calculate_metrics("GT2 Belt (Current 100mm/s)", configs["GT2 Belt (Current 100mm/s)"])
+    gt2_current = calculate_metrics(
+        "GT2 Belt (Current 100mm/s)", configs["GT2 Belt (Current 100mm/s)"]
+    )
     leadscrew = calculate_metrics("Leadscrew (Old System)", configs["Leadscrew (Old System)"])
-    gt2_conservative = calculate_metrics("GT2 Belt (Conservative 25mm/s)", configs["GT2 Belt (Conservative 25mm/s)"])
+    gt2_conservative = calculate_metrics(
+        "GT2 Belt (Conservative 25mm/s)", configs["GT2 Belt (Conservative 25mm/s)"]
+    )
     gt2_fast = calculate_metrics("GT2 Belt (Fast 150mm/s)", configs["GT2 Belt (Fast 150mm/s)"])
 
     print("\n✅ GT2 Belt (Current 100mm/s) vs Leadscrew (Old):")
-    print(f"  - Speed improvement: {gt2_current['max_speed'] / leadscrew['max_speed']:.2f}x faster ⚡")
+    print(
+        f"  - Speed improvement: {gt2_current['max_speed'] / leadscrew['max_speed']:.2f}x faster ⚡"
+    )
     print(
         f"  - Time reduction: {leadscrew['time_per_square'] / gt2_current['time_per_square']:.2f}x"
     )
@@ -281,7 +287,9 @@ def print_summary() -> None:
     )
 
     print("\n🐢 GT2 Belt (Conservative 25mm/s) vs Current:")
-    print(f"  - Speed difference: {gt2_conservative['max_speed'] / gt2_current['max_speed']:.2f}x (slower)")
+    print(
+        f"  - Speed difference: {gt2_conservative['max_speed'] / gt2_current['max_speed']:.2f}x (slower)"
+    )
     print(
         f"  - Time increase: {gt2_conservative['time_per_square'] / gt2_current['time_per_square']:.2f}x"
     )
@@ -291,8 +299,12 @@ def print_summary() -> None:
     )
 
     print("\n🚀 GT2 Belt (Fast 150mm/s) vs Current:")
-    print(f"  - Speed improvement: {gt2_fast['max_speed'] / gt2_current['max_speed']:.2f}x faster ⚡")
-    print(f"  - Time reduction: {gt2_current['time_per_square'] / gt2_fast['time_per_square']:.2f}x")
+    print(
+        f"  - Speed improvement: {gt2_fast['max_speed'] / gt2_current['max_speed']:.2f}x faster ⚡"
+    )
+    print(
+        f"  - Time reduction: {gt2_current['time_per_square'] / gt2_fast['time_per_square']:.2f}x"
+    )
     print(
         f"  - Full diagonal: {gt2_current['full_diagonal_time']:.1f}s → {gt2_fast['full_diagonal_time']:.1f}s "
         f"({gt2_current['full_diagonal_time'] - gt2_fast['full_diagonal_time']:.1f}s saved) 💾"

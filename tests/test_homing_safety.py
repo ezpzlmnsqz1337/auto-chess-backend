@@ -53,16 +53,14 @@ def test_homing_exceeds_max_position() -> None:
 
     # Verify that it stopped at exactly max_position steps (not beyond)
     assert step_count[0] == test_max_position, (
-        f"Expected exactly {test_max_position} steps, "
-        f"but took {step_count[0]} steps during homing"
+        f"Expected exactly {test_max_position} steps, but took {step_count[0]} steps during homing"
     )
 
     # Verify motor is not marked as homed
     assert not motor.is_homed, "Motor should not be marked as homed after failed homing"
 
     print(
-        f"✓ Homing safety test passed - stopped at {step_count[0]} steps "
-        f"(max: {test_max_position})"
+        f"✓ Homing safety test passed - stopped at {step_count[0]} steps (max: {test_max_position})"
     )
 
 

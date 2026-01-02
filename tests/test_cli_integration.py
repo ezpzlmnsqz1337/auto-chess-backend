@@ -36,8 +36,10 @@ def test_home_command(runner: CliRunner) -> None:
     result = runner.invoke(cli, ["home"])
     assert result.exit_code == 0
     # In mock mode, should see GPIO simulation message
-    assert ("🏠 Starting homing sequence..." in result.output or
-            "🔧 GPIO not available" in result.output)
+    assert (
+        "🏠 Starting homing sequence..." in result.output
+        or "🔧 GPIO not available" in result.output
+    )
 
 
 def test_magnet_on_command(runner: CliRunner) -> None:
