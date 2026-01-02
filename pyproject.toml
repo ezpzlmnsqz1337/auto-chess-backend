@@ -87,3 +87,6 @@ pythonpath = ["src"]
 env = [
     "MOTOR_DEBUG=0"  # Disable debug prints during testing for speed
 ]
+filterwarnings = [
+    "ignore::gpiozero.exc.PinFactoryFallback"
+]
