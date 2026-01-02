@@ -11,8 +11,8 @@ from matplotlib.figure import Figure
 from chess_game import ChessGame, PieceType, Player, Square
 
 # Create output directory for visualizations
-OUTPUT_DIR = Path(__file__).parent / "output"
-OUTPUT_DIR.mkdir(exist_ok=True)
+OUTPUT_DIR = Path(__file__).parent / "output" / "chess"
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def _draw_chess_board(

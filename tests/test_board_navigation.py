@@ -10,16 +10,15 @@ from tests.test_utils import (
     capture_movement_path,
     create_test_controller,
     draw_chess_board_grid,
-    plot_board_with_path,
     plot_path_with_gradient,
-    plot_speed_over_time,
 )
 
 
 def test_board_edge_square() -> None:
     """Test moving around the edge of the board (drawing a square) using actual motor code."""
     # Create output directory
-    Path("tests/output").mkdir(parents=True, exist_ok=True)
+    output_dir = Path("tests/output/movement")
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     # Create controller and home it
     controller = create_test_controller()
@@ -30,18 +29,58 @@ def test_board_edge_square() -> None:
     # Capture actual movement path using motor controller
     positions, timestamps, speeds = capture_movement_path(controller, corners)
 
-    # Plot path
-    plot_board_with_path(
-        positions, "Board Edge Square Test\nMoving Around Board Perimeter", "edge_square.png"
+    # Convert positions to mm for plotting
+    x_mm = [x / config.STEPS_PER_MM for x, _ in positions]
+    y_mm = [y / config.STEPS_PER_MM for _, y in positions]
+
+    # Create combined plot with path on top, speed on bottom
+    fig = plt.figure(figsize=(12, 10))
+    gs = fig.add_gridspec(2, 1, height_ratios=[1.2, 1], hspace=0.3)
+
+    # Top: Path plot
+    ax1 = fig.add_subplot(gs[0])
+    draw_chess_board_grid(ax1)
+    plot_path_with_gradient(ax1, x_mm, y_mm)
+    ax1.set_title("Board Edge Square Pattern", fontsize=12, fontweight="bold")
+    ax1.set_aspect("equal")
+
+    # Bottom: Speed analysis
+    ax2 = fig.add_subplot(gs[1])
+    ax2.plot(timestamps, speeds, linewidth=2, color="#2E86AB", alpha=0.9)
+    avg_speed = sum(speeds) / len(speeds) if speeds else 0
+    max_speed = max(speeds) if speeds else 0
+    ax2.axhline(
+        avg_speed,
+        color="orange",
+        linestyle="--",
+        linewidth=1.5,
+        label=f"Avg: {avg_speed:.1f} mm/s",
+        alpha=0.7,
+    )
+    ax2.set_xlabel("Time (s)", fontsize=10, fontweight="bold")
+    ax2.set_ylabel("Velocity (mm/s)", fontsize=10, fontweight="bold")
+    ax2.set_title("Motor Speed Analysis", fontsize=12, fontweight="bold")
+    ax2.grid(alpha=0.3)
+    ax2.legend(fontsize=9)
+
+    stats_text = f"Max: {max_speed:.1f} mm/s\nAvg: {avg_speed:.1f} mm/s"
+    ax2.text(
+        0.98,
+        0.98,
+        stats_text,
+        transform=ax2.transAxes,
+        fontsize=9,
+        verticalalignment="top",
+        horizontalalignment="right",
+        bbox={"boxstyle": "round", "facecolor": "wheat", "alpha": 0.8},
     )
 
-    # Plot speed over time
-    plot_speed_over_time(
-        timestamps,
-        speeds,
-        "Motor Speed - Board Edge Square Test",
-        "edge_square_speed.png",
+    fig.suptitle(
+        "Board Edge Square Test - Path & Speed Analysis", fontsize=14, fontweight="bold"
     )
+    plt.tight_layout()
+    plt.savefig(output_dir / "edge_square.png", dpi=100, bbox_inches="tight")
+    plt.close(fig)
 
     print(f"✓ Edge square test passed - traveled through {len(positions)} actual positions")
     print(f"  Final position: {controller.get_position()}")
@@ -49,7 +88,8 @@ def test_board_edge_square() -> None:
 
 def test_all_diagonals() -> None:
     """Test moving along all four major diagonals using actual motor code."""
-    Path("tests/output").mkdir(parents=True, exist_ok=True)
+    output_dir = Path("tests/output/movement")
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     # Get diagonal patterns
     diagonals_data = get_diagonal_patterns()
@@ -75,12 +115,13 @@ def test_all_diagonals() -> None:
         all_timestamps.append(timestamps)
         all_speeds.append(speeds)
 
-    # Create 2x2 subplot
-    fig, axes = plt.subplots(2, 2, figsize=(14, 14))
-    axes_flat = axes.flatten()
+    # Create combined figure with paths on top, speeds on bottom
+    fig = plt.figure(figsize=(20, 10))
+    gs = fig.add_gridspec(2, 4, hspace=0.35, wspace=0.3)
 
-    # Plot each diagonal
-    for positions, name, ax in zip(all_positions, diagonal_names, axes_flat, strict=True):
+    # Top row: Path plots for each diagonal
+    for idx, (positions, name) in enumerate(zip(all_positions, diagonal_names, strict=True)):
+        ax = fig.add_subplot(gs[0, idx])
         x_mm = [x / config.STEPS_PER_MM for x, _ in positions]
         y_mm = [y / config.STEPS_PER_MM for _, y in positions]
 
@@ -98,7 +139,7 @@ def test_all_diagonals() -> None:
 
         ax.set_xlabel("X (mm)", fontsize=10)
         ax.set_ylabel("Y (mm)", fontsize=10)
-        ax.set_title(name, fontsize=11, fontweight="bold")
+        ax.set_title(f"{name} - Path", fontsize=11, fontweight="bold")
         ax.grid(True, alpha=0.3)
         ax.legend(fontsize=8)
         ax.set_aspect("equal")
@@ -116,21 +157,11 @@ def test_all_diagonals() -> None:
             bbox={"boxstyle": "round", "facecolor": "wheat", "alpha": 0.8},
         )
 
-    plt.suptitle(
-        "All Four Major Diagonals Test (Actual Motor Movement)", fontsize=16, fontweight="bold"
-    )
-    plt.tight_layout()
-    plt.savefig("tests/output/all_diagonals.png", dpi=100, bbox_inches="tight")
-    plt.close()
-
-    # Create speed plot for all diagonals
-    fig, axes = plt.subplots(2, 2, figsize=(14, 10))
-    axes_flat = axes.flatten()
-
-    for timestamps, speeds, name, ax in zip(
-        all_timestamps, all_speeds, diagonal_names, axes_flat, strict=True
+    # Bottom row: Speed plots for each diagonal
+    for idx, (timestamps, speeds, name) in enumerate(
+        zip(all_timestamps, all_speeds, diagonal_names, strict=True)
     ):
-        # Simple line plot like in analysis folder
+        ax = fig.add_subplot(gs[1, idx])
         ax.plot(timestamps, speeds, linewidth=2, color="#2E86AB", alpha=0.9)
 
         avg_speed = sum(speeds) / len(speeds) if speeds else 0
@@ -146,7 +177,7 @@ def test_all_diagonals() -> None:
 
         ax.set_xlabel("Time (s)", fontsize=10, fontweight="bold")
         ax.set_ylabel("Velocity (mm/s)", fontsize=10, fontweight="bold")
-        ax.set_title(name, fontsize=11, fontweight="bold")
+        ax.set_title(f"{name} - Speed", fontsize=11, fontweight="bold")
         ax.grid(alpha=0.3)
         ax.legend(fontsize=8)
 
@@ -162,10 +193,12 @@ def test_all_diagonals() -> None:
             bbox={"boxstyle": "round", "facecolor": "wheat", "alpha": 0.8},
         )
 
-    plt.suptitle("Motor Velocity - All Diagonals Test", fontsize=16, fontweight="bold")
+    fig.suptitle(
+        "All Major Diagonals Test - Path & Speed Analysis", fontsize=16, fontweight="bold"
+    )
     plt.tight_layout()
-    plt.savefig("tests/output/all_diagonals_speed.png", dpi=100, bbox_inches="tight")
-    plt.close()
+    plt.savefig(output_dir / "all_diagonals.png", dpi=100, bbox_inches="tight")
+    plt.close(fig)
 
     total_steps = sum(len(pos) for pos in all_positions)
     print(f"✓ All diagonals test passed - tested {len(diagonals)} diagonals")
@@ -174,7 +207,8 @@ def test_all_diagonals() -> None:
 
 def test_snake_pattern_all_squares() -> None:
     """Test snake pattern through all 64 squares using actual motor code."""
-    Path("tests/output").mkdir(parents=True, exist_ok=True)
+    output_dir = Path("tests/output/movement")
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     # Create controller
     controller = create_test_controller()
@@ -185,17 +219,60 @@ def test_snake_pattern_all_squares() -> None:
     # Capture actual movement path
     positions, timestamps, speeds = capture_movement_path(controller, target_positions)
 
-    # Plot path
-    plot_board_with_path(
-        positions,
-        f"Snake Pattern Test\nVisiting All {config.BOARD_ROWS * config.BOARD_COLS} Squares (Actual Motor Movement)",
-        "snake_pattern.png",
+    # Convert positions to mm for plotting
+    x_mm = [x / config.STEPS_PER_MM for x, _ in positions]
+    y_mm = [y / config.STEPS_PER_MM for _, y in positions]
+
+    # Create combined plot with path on top, speed on bottom
+    fig = plt.figure(figsize=(12, 10))
+    gs = fig.add_gridspec(2, 1, height_ratios=[1.2, 1], hspace=0.3)
+
+    # Top: Path plot
+    ax1 = fig.add_subplot(gs[0])
+    draw_chess_board_grid(ax1)
+    plot_path_with_gradient(ax1, x_mm, y_mm)
+    ax1.set_title(
+        f"Snake Pattern - All {config.BOARD_ROWS * config.BOARD_COLS} Squares",
+        fontsize=12,
+        fontweight="bold",
+    )
+    ax1.set_aspect("equal")
+
+    # Bottom: Speed analysis
+    ax2 = fig.add_subplot(gs[1])
+    ax2.plot(timestamps, speeds, linewidth=2, color="#2E86AB", alpha=0.9)
+    avg_speed = sum(speeds) / len(speeds) if speeds else 0
+    max_speed = max(speeds) if speeds else 0
+    ax2.axhline(
+        avg_speed,
+        color="orange",
+        linestyle="--",
+        linewidth=1.5,
+        label=f"Avg: {avg_speed:.1f} mm/s",
+        alpha=0.7,
+    )
+    ax2.set_xlabel("Time (s)", fontsize=10, fontweight="bold")
+    ax2.set_ylabel("Velocity (mm/s)", fontsize=10, fontweight="bold")
+    ax2.set_title("Motor Speed Analysis", fontsize=12, fontweight="bold")
+    ax2.grid(alpha=0.3)
+    ax2.legend(fontsize=9)
+
+    stats_text = f"Max: {max_speed:.1f} mm/s\nAvg: {avg_speed:.1f} mm/s"
+    ax2.text(
+        0.98,
+        0.98,
+        stats_text,
+        transform=ax2.transAxes,
+        fontsize=9,
+        verticalalignment="top",
+        horizontalalignment="right",
+        bbox={"boxstyle": "round", "facecolor": "wheat", "alpha": 0.8},
     )
 
-    # Plot speed over time
-    plot_speed_over_time(
-        timestamps, speeds, "Motor Speed - Snake Pattern Test", "snake_pattern_speed.png"
-    )
+    fig.suptitle("Snake Pattern Test - Path & Speed Analysis", fontsize=14, fontweight="bold")
+    plt.tight_layout()
+    plt.savefig(output_dir / "snake_pattern.png", dpi=100, bbox_inches="tight")
+    plt.close(fig)
 
     # Verify we visited all 64 squares
     assert len(target_positions) == config.BOARD_ROWS * config.BOARD_COLS

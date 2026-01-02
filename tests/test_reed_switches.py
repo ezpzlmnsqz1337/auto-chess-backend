@@ -9,6 +9,10 @@ import pytest
 
 from reed_switch_controller import ReedSwitchController
 
+# Create output directory for visualizations
+OUTPUT_DIR = Path(__file__).parent / "output" / "reed_switches"
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
 
@@ -253,9 +257,6 @@ def test_wait_for_move_ignores_same_square() -> None:
 
 def test_visualize_starting_position() -> None:
     """Test and visualize standard chess starting position."""
-    # Create output directory
-    Path("tests/output").mkdir(parents=True, exist_ok=True)
-
     reed = ReedSwitchController()
 
     # Simulate standard chess starting position
@@ -273,7 +274,7 @@ def test_visualize_starting_position() -> None:
     fig, ax = plt.subplots(figsize=(10, 10))
     _draw_reed_switch_board(ax, reed, "Chess Starting Position")
     plt.tight_layout()
-    plt.savefig("tests/output/reed_starting_position.png", dpi=150, bbox_inches="tight")
+    plt.savefig(OUTPUT_DIR / "reed_starting_position.png", dpi=150, bbox_inches="tight")
     plt.close()
 
     print("✓ Starting position visualization saved")
@@ -282,8 +283,6 @@ def test_visualize_starting_position() -> None:
 
 def test_visualize_move_sequence() -> None:
     """Test and visualize a sequence of moves (e2-e4, e7-e5)."""
-    Path("tests/output").mkdir(parents=True, exist_ok=True)
-
     reed = ReedSwitchController()
 
     # Starting position
@@ -323,7 +322,7 @@ def test_visualize_move_sequence() -> None:
     _highlight_move(axes[2], reed, e7_idx, e5_idx)
 
     plt.tight_layout()
-    plt.savefig("tests/output/reed_move_sequence.png", dpi=150, bbox_inches="tight")
+    plt.savefig(OUTPUT_DIR / "reed_move_sequence.png", dpi=150, bbox_inches="tight")
     plt.close()
 
     print("✓ Move sequence visualization saved")
@@ -332,8 +331,6 @@ def test_visualize_move_sequence() -> None:
 
 def test_visualize_change_detection() -> None:
     """Test and visualize change detection between board states."""
-    Path("tests/output").mkdir(parents=True, exist_ok=True)
-
     reed = ReedSwitchController()
 
     # Initial position (e4, d4, e5, d5 occupied - center control)
@@ -394,7 +391,7 @@ def test_visualize_change_detection() -> None:
     axes[2].legend(loc="upper right", fontsize=10)
 
     plt.tight_layout()
-    plt.savefig("tests/output/reed_change_detection.png", dpi=150, bbox_inches="tight")
+    plt.savefig(OUTPUT_DIR / "reed_change_detection.png", dpi=150, bbox_inches="tight")
     plt.close()
 
     print("✓ Change detection visualization saved")

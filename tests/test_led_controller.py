@@ -12,8 +12,8 @@ from chess_game import ChessGame, Square
 from led import WS2812BController
 
 # Create output directory for visualizations
-OUTPUT_DIR = Path(__file__).parent / "output"
-OUTPUT_DIR.mkdir(exist_ok=True)
+OUTPUT_DIR = Path(__file__).parent / "output" / "leds"
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 
 # LED color constants for testing

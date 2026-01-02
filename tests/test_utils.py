@@ -1,5 +1,6 @@
 """Test utilities for motor controller testing and visualization."""
 
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from unittest.mock import patch
 
@@ -267,7 +268,9 @@ def plot_speed_over_time(
     )
 
     plt.tight_layout()
-    plt.savefig(f"tests/output/{filename}", dpi=100, bbox_inches="tight")
+    output_dir = Path("tests/output/movement")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    plt.savefig(output_dir / filename, dpi=100, bbox_inches="tight")
     plt.close()
 
 
@@ -458,5 +461,7 @@ def plot_board_with_path(
     add_board_coordinates(ax, margin)
 
     plt.tight_layout()
-    plt.savefig(f"tests/output/{filename}", dpi=100, bbox_inches="tight")
+    output_dir = Path("tests/output/movement")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    plt.savefig(output_dir / filename, dpi=100, bbox_inches="tight")
     plt.close()
