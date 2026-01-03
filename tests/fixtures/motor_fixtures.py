@@ -3,7 +3,7 @@
 from typing import Any
 
 import config
-from motor import MotorController, StepperMotor
+from motor import Electromagnet, MotorController, StepperMotor
 
 
 def create_test_controller() -> MotorController:
@@ -15,6 +15,9 @@ def create_test_controller() -> MotorController:
     """
     motor_x = create_test_motor("X")
     motor_y = create_test_motor("Y")
+    
+    # Create mock electromagnet
+    magnet = Electromagnet(config.ELECTROMAGNET_PIN)
 
     controller = MotorController(
         motor_x,
@@ -23,6 +26,7 @@ def create_test_controller() -> MotorController:
         min_step_delay=config.MIN_STEP_DELAY,
         max_step_delay=config.MAX_STEP_DELAY,
         accel_steps=config.ACCELERATION_STEPS,
+        electromagnet=magnet,
     )
     # Simulate homing
     controller.motor_x.is_homed = True
