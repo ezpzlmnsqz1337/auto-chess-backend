@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 
 import config
 from chess_game import ChessGame, Piece, PieceType, Player, Square
-from src.knight_pathfinding import calculate_knight_path
+from src.knight_pathfinding import calculate_knight_path, plan_knight_movement
 from tests.test_utils import capture_movement_path, create_test_controller
 from tests.visualization import (
     draw_chess_pieces,
@@ -43,7 +43,10 @@ def test_knight_obstacle_avoidance() -> None:
     from_square = Square.from_notation("b1")
     to_square = Square.from_notation("c3")
 
-    # Calculate waypoints that avoid obstacles
+    # Get complete movement plan from application code
+    movement_plan = plan_knight_movement(from_square, to_square, game)
+
+    # Calculate waypoints for visualization (still in mm)
     waypoints = calculate_knight_path(from_square, to_square, game, config.SQUARE_SIZE_MM)
 
     print(f"\nKnight move: {from_square.to_notation()} -> {to_square.to_notation()}")
@@ -55,36 +58,18 @@ def test_knight_obstacle_avoidance() -> None:
     controller = create_test_controller()
     assert controller.electromagnet is not None
 
-    # First, move to center of b1 to pick up the knight (with magnet OFF)
-    center_b1_x_mm = (from_square.col + 0.5) * config.SQUARE_SIZE_MM
-    center_b1_y_mm = (from_square.row + 0.5) * config.SQUARE_SIZE_MM
-    center_b1_steps = (
-        int((center_b1_x_mm + config.MOTOR_X_OFFSET_MM) * config.STEPS_PER_MM),
-        int(center_b1_y_mm * config.STEPS_PER_MM),
-    )
-
-    # Convert waypoints to steps for motor controller
-    # Waypoints are in board coordinates (mm), so add motor offset before converting to steps
-    waypoint_steps = [
-        (
-            int((wp.x + config.MOTOR_X_OFFSET_MM) * config.STEPS_PER_MM),
-            int(wp.y * config.STEPS_PER_MM),
-        )
-        for wp in waypoints
-    ]
-
-    # Simulate the movement
-    # 1. Move to center of b1 with magnet OFF (positioning above piece)
+    # Execute the movement plan
+    # 1. Move to pickup position with magnet OFF
     controller.electromagnet.off()
     positions, timestamps, speeds, magnet_states = capture_movement_path(
-        controller, [center_b1_steps], sample_rate=20
+        controller, [movement_plan.pickup_position], sample_rate=20
     )
 
     # 2. Turn magnet ON to pick up the knight
     controller.electromagnet.on()
 
     # 3. Navigate through all waypoints with magnet ON
-    for waypoint_step in waypoint_steps:
+    for waypoint_step in movement_plan.waypoints:
         pos2, time2, speed2, mag2 = capture_movement_path(
             controller, [waypoint_step], sample_rate=20
         )

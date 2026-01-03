@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 
+import config
 from chess_game import ChessGame, Square
 
 
@@ -12,6 +13,65 @@ class Waypoint:
     x: float  # X position in mm
     y: float  # Y position in mm
     description: str
+
+
+@dataclass
+class KnightMovementPlan:
+    """Complete movement plan for knight with motor coordinates."""
+
+    pickup_position: tuple[int, int]  # Motor steps to center of source square
+    waypoints: list[tuple[int, int]]  # Motor steps for each waypoint
+    magnet_on_at_pickup: bool  # True to activate magnet at pickup position
+    descriptions: list[str]  # Human-readable description for each waypoint
+
+
+def plan_knight_movement(
+    from_square: Square,
+    to_square: Square,
+    game: ChessGame,
+) -> KnightMovementPlan:
+    """
+    Plan complete knight movement including pickup, navigation, and dropoff.
+
+    Converts board coordinates (mm) to motor coordinates (steps) including motor offset.
+    Returns a complete movement plan ready for motor execution.
+
+    Args:
+        from_square: Starting square
+        to_square: Destination square
+        game: Current game state (to check occupancy)
+
+    Returns:
+        KnightMovementPlan with motor step coordinates for all positions
+    """
+    # Calculate waypoints in board coordinates (mm)
+    waypoints_mm = calculate_knight_path(from_square, to_square, game, config.SQUARE_SIZE_MM)
+
+    # Convert pickup position (center of source square) to motor steps
+    pickup_x_mm = (from_square.col + 0.5) * config.SQUARE_SIZE_MM
+    pickup_y_mm = (from_square.row + 0.5) * config.SQUARE_SIZE_MM
+    pickup_steps = (
+        int((pickup_x_mm + config.MOTOR_X_OFFSET_MM) * config.STEPS_PER_MM),
+        int(pickup_y_mm * config.STEPS_PER_MM),
+    )
+
+    # Convert waypoints to motor steps
+    waypoint_steps = [
+        (
+            int((wp.x + config.MOTOR_X_OFFSET_MM) * config.STEPS_PER_MM),
+            int(wp.y * config.STEPS_PER_MM),
+        )
+        for wp in waypoints_mm
+    ]
+
+    descriptions = [wp.description for wp in waypoints_mm]
+
+    return KnightMovementPlan(
+        pickup_position=pickup_steps,
+        waypoints=waypoint_steps,
+        magnet_on_at_pickup=True,
+        descriptions=descriptions,
+    )
 
 
 def calculate_knight_path(
