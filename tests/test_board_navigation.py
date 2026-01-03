@@ -6,11 +6,13 @@ import matplotlib.pyplot as plt
 
 import config
 from demo_patterns import get_diagonal_patterns, get_edge_square_pattern, get_snake_pattern
-from tests.test_utils import (
-    capture_movement_path,
-    create_test_controller,
-    draw_chess_board_grid,
-    plot_path_with_gradient,
+from tests.test_utils import capture_movement_path, create_test_controller
+from tests.visualization import (
+    convert_steps_to_mm,
+    draw_movement_path_gradient,
+    draw_speed_profile,
+    setup_movement_plot,
+    setup_speed_plot,
 )
 
 
@@ -27,11 +29,10 @@ def test_board_edge_square() -> None:
     corners = get_edge_square_pattern()
 
     # Capture actual movement path using motor controller
-    positions, timestamps, speeds = capture_movement_path(controller, corners)
+    positions, timestamps, speeds, magnet_states = capture_movement_path(controller, corners)
 
     # Convert positions to mm for plotting
-    x_mm = [x / config.STEPS_PER_MM for x, _ in positions]
-    y_mm = [y / config.STEPS_PER_MM for _, y in positions]
+    x_mm, y_mm = convert_steps_to_mm(positions)
 
     # Create combined plot with path on top, speed on bottom
     fig = plt.figure(figsize=(12, 10))
@@ -39,41 +40,13 @@ def test_board_edge_square() -> None:
 
     # Top: Path plot
     ax1 = fig.add_subplot(gs[0])
-    draw_chess_board_grid(ax1)
-    plot_path_with_gradient(ax1, x_mm, y_mm)
-    ax1.set_title("Board Edge Square Pattern", fontsize=12, fontweight="bold")
-    ax1.set_aspect("equal")
+    setup_movement_plot(ax1, title="Board Edge Square Pattern")
+    draw_movement_path_gradient(ax1, x_mm, y_mm)
 
     # Bottom: Speed analysis
     ax2 = fig.add_subplot(gs[1])
-    ax2.plot(timestamps, speeds, linewidth=2, color="#2E86AB", alpha=0.9)
-    avg_speed = sum(speeds) / len(speeds) if speeds else 0
-    max_speed = max(speeds) if speeds else 0
-    ax2.axhline(
-        avg_speed,
-        color="orange",
-        linestyle="--",
-        linewidth=1.5,
-        label=f"Avg: {avg_speed:.1f} mm/s",
-        alpha=0.7,
-    )
-    ax2.set_xlabel("Time (s)", fontsize=10, fontweight="bold")
-    ax2.set_ylabel("Velocity (mm/s)", fontsize=10, fontweight="bold")
-    ax2.set_title("Motor Speed Analysis", fontsize=12, fontweight="bold")
-    ax2.grid(alpha=0.3)
-    ax2.legend(fontsize=9)
-
-    stats_text = f"Max: {max_speed:.1f} mm/s\nAvg: {avg_speed:.1f} mm/s"
-    ax2.text(
-        0.98,
-        0.98,
-        stats_text,
-        transform=ax2.transAxes,
-        fontsize=9,
-        verticalalignment="top",
-        horizontalalignment="right",
-        bbox={"boxstyle": "round", "facecolor": "wheat", "alpha": 0.8},
-    )
+    setup_speed_plot(ax2, title="Motor Speed Analysis")
+    draw_speed_profile(ax2, timestamps, speeds)
 
     fig.suptitle("Board Edge Square Test - Path & Speed Analysis", fontsize=14, fontweight="bold")
     plt.savefig(output_dir / "edge_square.png", dpi=100, bbox_inches="tight")
@@ -105,7 +78,7 @@ def test_all_diagonals() -> None:
         # Skip velocity tracking for the positioning move (first move)
         start_x, start_y = start
         end_x, end_y = end
-        positions, timestamps, speeds = capture_movement_path(
+        positions, timestamps, speeds, magnet_states = capture_movement_path(
             controller, [(start_x, start_y), (end_x, end_y)], skip_first_move=True
         )
         all_positions.append(positions)
@@ -119,35 +92,19 @@ def test_all_diagonals() -> None:
     # Top row: Path plots for each diagonal
     for idx, (positions, name) in enumerate(zip(all_positions, diagonal_names, strict=True)):
         ax = fig.add_subplot(gs[0, idx])
-        x_mm = [x / config.STEPS_PER_MM for x, _ in positions]
-        y_mm = [y / config.STEPS_PER_MM for _, y in positions]
+        x_mm, y_mm = convert_steps_to_mm(positions)
 
-        draw_chess_board_grid(ax)
-        plot_path_with_gradient(ax, x_mm, y_mm, sample_interval=max(1, len(x_mm) // 50))
+        setup_movement_plot(ax, title=f"{name} - Path")
+        draw_movement_path_gradient(ax, x_mm, y_mm)
 
         # Start and end markers
         ax.plot(x_mm[0], y_mm[0], "go", markersize=10, label="Start", zorder=3)
         ax.plot(x_mm[-2], y_mm[-2], "ro", markersize=10, label="End", zorder=3)
 
-        # Compact axes setup - use extended board dimensions in motor coordinates
-        margin = config.SQUARE_SIZE_MM * 0.5
-        # Motor coordinate limits: left capture at motor_offset + left_capture_start, right at motor_offset + right_capture_end
-        x_min = config.LEFT_CAPTURE_START_MM + config.MOTOR_X_OFFSET_MM - margin
-        x_max = (
-            config.RIGHT_CAPTURE_START_MM
-            + config.CAPTURE_COLS * config.SQUARE_SIZE_MM
-            + config.MOTOR_X_OFFSET_MM
-            + margin
-        )
-
-        ax.set_xlabel("X (mm - motor coordinates)", fontsize=10)
-        ax.set_ylabel("Y (mm)", fontsize=10)
-        ax.set_title(f"{name} - Path", fontsize=11, fontweight="bold")
-        ax.grid(True, alpha=0.3)
-        ax.legend(fontsize=8)
-        ax.set_aspect("equal")
-        ax.set_xlim(x_min, x_max)
-        ax.set_ylim(-margin, config.BOARD_ROWS * config.SQUARE_SIZE_MM + margin)
+        # Get unique legend entries
+        handles, labels = ax.get_legend_handles_labels()
+        by_label = dict(zip(labels, handles, strict=False))
+        ax.legend(by_label.values(), by_label.keys(), fontsize=8, loc="upper right")
 
         # Add position count
         ax.text(
@@ -165,36 +122,8 @@ def test_all_diagonals() -> None:
         zip(all_timestamps, all_speeds, diagonal_names, strict=True)
     ):
         ax = fig.add_subplot(gs[1, idx])
-        ax.plot(timestamps, speeds, linewidth=2, color="#2E86AB", alpha=0.9)
-
-        avg_speed = sum(speeds) / len(speeds) if speeds else 0
-        max_speed = max(speeds) if speeds else 0
-        ax.axhline(
-            avg_speed,
-            color="orange",
-            linestyle="--",
-            linewidth=1.5,
-            label=f"Avg: {avg_speed:.1f} mm/s",
-            alpha=0.7,
-        )
-
-        ax.set_xlabel("Time (s)", fontsize=10, fontweight="bold")
-        ax.set_ylabel("Velocity (mm/s)", fontsize=10, fontweight="bold")
-        ax.set_title(f"{name} - Speed", fontsize=11, fontweight="bold")
-        ax.grid(alpha=0.3)
-        ax.legend(fontsize=8)
-
-        stats_text = f"Max: {max_speed:.1f} mm/s\nAvg: {avg_speed:.1f} mm/s"
-        ax.text(
-            0.98,
-            0.98,
-            stats_text,
-            transform=ax.transAxes,
-            fontsize=8,
-            verticalalignment="top",
-            horizontalalignment="right",
-            bbox={"boxstyle": "round", "facecolor": "wheat", "alpha": 0.8},
-        )
+        setup_speed_plot(ax, title=f"{name} - Speed")
+        draw_speed_profile(ax, timestamps, speeds)
 
     fig.suptitle("All Major Diagonals Test - Path & Speed Analysis", fontsize=16, fontweight="bold")
     plt.savefig(output_dir / "all_diagonals.png", dpi=100, bbox_inches="tight")
@@ -217,11 +146,10 @@ def test_snake_pattern_all_squares() -> None:
     target_positions = get_snake_pattern()
 
     # Capture actual movement path
-    positions, timestamps, speeds = capture_movement_path(controller, target_positions)
+    positions, timestamps, speeds, magnet_states = capture_movement_path(controller, target_positions)
 
     # Convert positions to mm for plotting
-    x_mm = [x / config.STEPS_PER_MM for x, _ in positions]
-    y_mm = [y / config.STEPS_PER_MM for _, y in positions]
+    x_mm, y_mm = convert_steps_to_mm(positions)
 
     # Create combined plot with path on top, speed on bottom
     fig = plt.figure(figsize=(12, 10))
@@ -229,45 +157,15 @@ def test_snake_pattern_all_squares() -> None:
 
     # Top: Path plot
     ax1 = fig.add_subplot(gs[0])
-    draw_chess_board_grid(ax1)
-    plot_path_with_gradient(ax1, x_mm, y_mm)
-    ax1.set_title(
-        f"Snake Pattern - All {config.BOARD_ROWS * config.BOARD_COLS} Squares",
-        fontsize=12,
-        fontweight="bold",
+    setup_movement_plot(
+        ax1, title=f"Snake Pattern - All {config.BOARD_ROWS * config.BOARD_COLS} Squares"
     )
-    ax1.set_aspect("equal")
+    draw_movement_path_gradient(ax1, x_mm, y_mm)
 
     # Bottom: Speed analysis
     ax2 = fig.add_subplot(gs[1])
-    ax2.plot(timestamps, speeds, linewidth=2, color="#2E86AB", alpha=0.9)
-    avg_speed = sum(speeds) / len(speeds) if speeds else 0
-    max_speed = max(speeds) if speeds else 0
-    ax2.axhline(
-        avg_speed,
-        color="orange",
-        linestyle="--",
-        linewidth=1.5,
-        label=f"Avg: {avg_speed:.1f} mm/s",
-        alpha=0.7,
-    )
-    ax2.set_xlabel("Time (s)", fontsize=10, fontweight="bold")
-    ax2.set_ylabel("Velocity (mm/s)", fontsize=10, fontweight="bold")
-    ax2.set_title("Motor Speed Analysis", fontsize=12, fontweight="bold")
-    ax2.grid(alpha=0.3)
-    ax2.legend(fontsize=9)
-
-    stats_text = f"Max: {max_speed:.1f} mm/s\nAvg: {avg_speed:.1f} mm/s"
-    ax2.text(
-        0.98,
-        0.98,
-        stats_text,
-        transform=ax2.transAxes,
-        fontsize=9,
-        verticalalignment="top",
-        horizontalalignment="right",
-        bbox={"boxstyle": "round", "facecolor": "wheat", "alpha": 0.8},
-    )
+    setup_speed_plot(ax2, title="Motor Speed Analysis")
+    draw_speed_profile(ax2, timestamps, speeds)
 
     fig.suptitle("Snake Pattern Test - Path & Speed Analysis", fontsize=14, fontweight="bold")
     plt.savefig(output_dir / "snake_pattern.png", dpi=100, bbox_inches="tight")

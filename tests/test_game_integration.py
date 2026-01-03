@@ -14,7 +14,6 @@ from typing import TYPE_CHECKING, TypedDict
 import chess
 import matplotlib.patheffects as path_effects
 import matplotlib.pyplot as plt
-from matplotlib.patches import Rectangle
 
 import config
 from chess_game import ChessGame, PieceType, Player, Square
@@ -24,8 +23,16 @@ from src.board_navigation import square_to_steps
 from tests.test_utils import (
     capture_movement_path,
     create_test_controller,
-    draw_chess_board_grid,
-    plot_path_with_magnet_state,
+)
+from tests.visualization import (
+    draw_led_state,
+    draw_movement_path,
+    draw_speed_profile,
+    setup_chess_board_plot,
+    setup_led_board_plot,
+    setup_movement_plot,
+    setup_speed_plot,
+    standard_draw_chess_pieces,
 )
 
 if TYPE_CHECKING:
@@ -417,161 +424,28 @@ def test_complete_game_integration() -> None:
         for col_idx, state in enumerate(states):
             # Row 1: Chess board with pieces
             ax1 = fig.add_subplot(gs[0, col_idx])
-            draw_chess_board_grid(ax1, show_capture_areas=False, use_motor_coordinates=False)
-            _draw_chess_pieces(ax1, state["game"])
-            ax1.set_title(f"{state['title']}\n{state['subtitle']}", fontsize=11, fontweight="bold")
-            ax1.set_aspect("equal")
+            setup_chess_board_plot(ax1, title=f"{state['title']}\n{state['subtitle']}", show_coordinates=False)
+            standard_draw_chess_pieces(ax1, state["game"])
 
             # Row 2: Magnet movement path (motor coordinates)
             ax2 = fig.add_subplot(gs[1, col_idx])
-            draw_chess_board_grid(ax2, show_capture_areas=True, use_motor_coordinates=True)
+            setup_movement_plot(ax2, title="Magnet Movement (This Move)", show_capture_areas=True)
 
             if state["path_x"] and state["path_y"]:
-                plot_path_with_magnet_state(
-                    ax2, state["path_x"], state["path_y"], state["magnet_states"]
-                )
+                draw_movement_path(ax2, state["path_x"], state["path_y"], state["magnet_states"])
 
             _draw_magnet_position(ax2, state["path_x"], state["path_y"], state["is_homed"])
 
-            ax2.set_title("Magnet Movement (This Move)", fontsize=10)
-            ax2.set_xlabel("X Position (mm)")
-            ax2.set_ylabel("Y Position (mm)")
-            ax2.set_aspect("equal")
-
             # Row 3: Speed profile
             ax3 = fig.add_subplot(gs[2, col_idx])
+            setup_speed_plot(ax3, title="Magnet Speed Profile")
             if state["time"] and state["speeds"]:
-                ax3.plot(state["time"], state["speeds"], linewidth=2, color="#2E86AB", alpha=0.9)
-                avg_speed = sum(state["speeds"]) / len(state["speeds"])
-                max_speed = max(state["speeds"])
-                ax3.axhline(
-                    y=avg_speed,
-                    color="orange",
-                    linestyle="--",
-                    linewidth=1.5,
-                    label=f"Avg: {avg_speed:.0f} mm/s",
-                )
-                ax3.text(
-                    0.98,
-                    0.95,
-                    f"Max: {max_speed:.0f} mm/s",
-                    transform=ax3.transAxes,
-                    fontsize=9,
-                    va="top",
-                    ha="right",
-                    bbox={"boxstyle": "round", "facecolor": "white", "alpha": 0.8},
-                )
-            ax3.set_title("Magnet Speed Profile", fontsize=10)
-            ax3.set_xlabel("Time (s)")
-            ax3.set_ylabel("Speed (mm/s)")
-            ax3.grid(True, alpha=0.3)
-            if state["speeds"]:
-                ax3.legend(loc="upper left", fontsize=8)
+                draw_speed_profile(ax3, state["time"], state["speeds"])
 
             # Row 4: LED state
             ax4 = fig.add_subplot(gs[3, col_idx])
-            draw_chess_board_grid(ax4, show_capture_areas=True, use_motor_coordinates=False)
-
-            # Draw LED colors from mock controller
-            led_controller = state["led_state"]
-
-            # Helper function to draw LED square
-            def draw_led_overlay(
-                x_pos: float,
-                y_pos: float,
-                led_index: int,
-                color: tuple[int, int, int],
-                chess_label: str | None = None,
-            ) -> None:
-                """Draw LED square with color, LED index, and optional chess notation."""
-                # Normalize RGB to 0-1 range
-                color_normalized = (color[0] / 255, color[1] / 255, color[2] / 255)
-                # Add colored square overlay (slightly transparent to show grid)
-                ax4.add_patch(
-                    Rectangle(
-                        (x_pos, y_pos),
-                        1,
-                        1,
-                        linewidth=0,
-                        facecolor=color_normalized,
-                        alpha=0.8,
-                        zorder=5,
-                    )
-                )
-
-                text_color = "white" if sum(color) < 384 else "black"
-
-                if chess_label:
-                    # Show both chess notation and LED index
-                    ax4.text(
-                        x_pos + 0.5,
-                        y_pos + 0.65,
-                        chess_label,
-                        ha="center",
-                        va="center",
-                        fontsize=7,
-                        color=text_color,
-                        weight="bold",
-                        zorder=6,
-                    )
-                    ax4.text(
-                        x_pos + 0.5,
-                        y_pos + 0.35,
-                        str(led_index),
-                        ha="center",
-                        va="center",
-                        fontsize=5,
-                        color=text_color,
-                        alpha=0.7,
-                        zorder=6,
-                    )
-                else:
-                    # Just show LED index for capture areas
-                    ax4.text(
-                        x_pos + 0.5,
-                        y_pos + 0.5,
-                        str(led_index),
-                        ha="center",
-                        va="center",
-                        fontsize=6,
-                        color=text_color,
-                        weight="bold",
-                        zorder=6,
-                    )
-
-            # Calculate gap for positioning
-            gap_in_squares = config.CAPTURE_OFFSET_MM / config.SQUARE_SIZE_MM
-
-            # Draw left capture area LEDs 0-15 (columns -2, -1)
-            led_index = 0
-            for row in range(config.BOARD_ROWS):
-                for col in range(-config.CAPTURE_COLS, 0):
-                    x_pos = col - gap_in_squares
-                    color = (0, 0, 0)  # Black/off - no data yet
-                    draw_led_overlay(x_pos, row, led_index, color)
-                    led_index += 1
-
-            # Draw main board LEDs 16-79 (columns 0-7)
-            led_index = 16
-            for row in range(config.BOARD_ROWS):
-                for col in range(config.BOARD_COLS):
-                    square_led = Square(row, col)
-                    color = led_controller.get_square_color(square_led)
-                    chess_label = square_led.to_notation()  # a1, b1, etc.
-                    draw_led_overlay(col, row, led_index, color, chess_label)
-                    led_index += 1
-
-            # Draw right capture area LEDs 80-95 (columns 8, 9)
-            led_index = 80
-            for row in range(config.BOARD_ROWS):
-                for col in range(config.BOARD_COLS, config.BOARD_COLS + config.CAPTURE_COLS):
-                    x_pos = col + gap_in_squares
-                    color = (0, 0, 0)  # Black/off - no data yet
-                    draw_led_overlay(x_pos, row, led_index, color)
-                    led_index += 1
-
-            ax4.set_title("LED Feedback", fontsize=10)
-            ax4.set_aspect("equal")
+            setup_led_board_plot(ax4, title="LED Feedback")
+            draw_led_state(ax4, state["led_state"])
 
         fig.suptitle(
             "Complete Auto-Chess Integration Test\nUsing Real Motor Controller with Acceleration",

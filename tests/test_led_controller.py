@@ -4,12 +4,12 @@ Tests for WS2812B LED controller with visualizations.
 
 from pathlib import Path
 
-import matplotlib.patches as patches
 import matplotlib.pyplot as plt
 import pytest
 
 from chess_game import ChessGame, Square
 from led import WS2812BController
+from tests.visualization import draw_led_state, setup_led_board_plot
 
 # Create output directory for visualizations
 OUTPUT_DIR = Path(__file__).parent / "output" / "leds"
@@ -305,111 +305,18 @@ def _draw_led_board(
     title: str,
     filename: str,
 ) -> None:
-    """
-    Draw the current LED state as a chess board visualization with all 96 LEDs.
+    """Draw the current LED state using standardized plotting functions.
 
     Args:
         controller: LED controller with current state
         title: Plot title
         filename: Output filename
     """
-    import config
-    from tests.test_utils import draw_chess_board_grid
-
     fig, ax = plt.subplots(figsize=(12, 8))
 
-    # Draw board grid using unified function (board coordinate space with capture areas)
-    draw_chess_board_grid(ax, show_capture_areas=True, use_motor_coordinates=False)
-
-    # Helper function to draw LED square
-    def draw_led_overlay(
-        x_pos: float, y_pos: float, led_index: int, color: tuple[int, int, int], chess_label: str | None = None
-    ) -> None:
-        """Draw LED square with color, LED index, and optional chess notation."""
-        # Normalize RGB to 0-1 range
-        color_normalized = (color[0] / 255, color[1] / 255, color[2] / 255)
-        # Add colored square overlay (slightly transparent to show grid)
-        rect = patches.Rectangle(
-            (x_pos, y_pos), 1, 1, linewidth=0, facecolor=color_normalized, alpha=0.8, zorder=5
-        )
-        ax.add_patch(rect)
-        
-        text_color = "white" if sum(color) < 384 else "black"
-        
-        if chess_label:
-            # Show both chess notation and LED index
-            ax.text(
-                x_pos + 0.5,
-                y_pos + 0.65,
-                chess_label,
-                ha="center",
-                va="center",
-                fontsize=8,
-                color=text_color,
-                weight="bold",
-                zorder=6,
-            )
-            ax.text(
-                x_pos + 0.5,
-                y_pos + 0.35,
-                str(led_index),
-                ha="center",
-                va="center",
-                fontsize=6,
-                color=text_color,
-                alpha=0.7,
-                zorder=6,
-            )
-        else:
-            # Just show LED index for capture areas
-            ax.text(
-                x_pos + 0.5,
-                y_pos + 0.5,
-                str(led_index),
-                ha="center",
-                va="center",
-                fontsize=7,
-                color=text_color,
-                weight="bold",
-                zorder=6,
-            )
-
-    # Calculate gap for positioning
-    gap_in_squares = config.CAPTURE_OFFSET_MM / config.SQUARE_SIZE_MM
-
-    # Draw left capture area LEDs 0-15 (columns -2, -1)
-    led_index = 0
-    for row in range(config.BOARD_ROWS):
-        for col in range(-config.CAPTURE_COLS, 0):
-            x_pos = col - gap_in_squares
-            color = (0, 0, 0)  # Black/off - no data yet
-            draw_led_overlay(x_pos, row, led_index, color)
-            led_index += 1
-
-    # Draw main board LEDs 16-79 (columns 0-7)
-    led_index = 16
-    for row in range(config.BOARD_ROWS):
-        for col in range(config.BOARD_COLS):
-            square = Square(row, col)
-            color = controller.get_square_color(square)
-            chess_label = square.to_notation()  # a1, b1, etc.
-            draw_led_overlay(col, row, led_index, color, chess_label)
-            led_index += 1
-
-    # Draw right capture area LEDs 80-95 (columns 8, 9)
-    led_index = 80
-    for row in range(config.BOARD_ROWS):
-        for col in range(config.BOARD_COLS, config.BOARD_COLS + config.CAPTURE_COLS):
-            x_pos = col + gap_in_squares
-            color = (0, 0, 0)  # Black/off - no data yet
-            draw_led_overlay(x_pos, row, led_index, color)
-            led_index += 1
-
-    ax.set_aspect("equal")
-    ax.set_xticks([])
-    ax.set_yticks([])
-    ax.set_title(title, fontsize=14, pad=10)
-    ax.grid(False)
+    # Use standardized LED board plotting
+    setup_led_board_plot(ax, title=title)
+    draw_led_state(ax, controller)
 
     plt.tight_layout()
     plt.savefig(OUTPUT_DIR / filename, dpi=100)

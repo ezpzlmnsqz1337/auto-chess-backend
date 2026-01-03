@@ -5,11 +5,11 @@ Tests for chess game logic with visualizations.
 from pathlib import Path
 
 import matplotlib.patches as mpatches
-import matplotlib.patheffects as path_effects
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 
-from chess_game import ChessGame, PieceType, Player, Square
+from chess_game import ChessGame, Piece, PieceType, Player, Square
+from tests.visualization import setup_chess_board_plot, standard_draw_chess_pieces
 
 # Create output directory for visualizations
 OUTPUT_DIR = Path(__file__).parent / "output" / "chess"
@@ -22,15 +22,13 @@ def _draw_chess_board(
     highlighted_squares: dict[Square, tuple[int, int, int]] | None = None,
     show_legal_moves: Square | None = None,
 ) -> Figure:
-    """Draw a chess board with pieces and optional highlights using unified grid."""
-    from tests.test_utils import draw_chess_board_grid
-
+    """Draw a chess board with pieces and optional highlights using standardized plots."""
     fig, ax = plt.subplots(figsize=(10, 8))
 
-    # Draw board grid using unified function (board coordinate space with capture areas)
-    draw_chess_board_grid(ax, show_capture_areas=True, use_motor_coordinates=False)
+    # Use standardized chess board setup
+    setup_chess_board_plot(ax, title=title, show_coordinates=True)
 
-    # Highlight squares
+    # Highlight squares (custom for this test)
     if highlighted_squares:
         for square, color_rgb in highlighted_squares.items():
             color_hex = f"#{color_rgb[0]:02x}{color_rgb[1]:02x}{color_rgb[2]:02x}"
@@ -43,10 +41,11 @@ def _draw_chess_board(
                     edgecolor="red",
                     linewidth=2,
                     alpha=0.7,
+                    zorder=5,
                 )
             )
 
-    # Show legal moves if requested
+    # Show legal moves if requested (custom for this test)
     if show_legal_moves:
         legal_moves = game.get_legal_moves(show_legal_moves)
         for move_square in legal_moves:
@@ -56,62 +55,12 @@ def _draw_chess_board(
                 0.15,
                 facecolor="green",
                 alpha=0.7,
+                zorder=15,
             )
             ax.add_patch(circle)
 
-    # Draw pieces
-    piece_symbols = {
-        PieceType.PAWN: "♟",
-        PieceType.KNIGHT: "♞",
-        PieceType.BISHOP: "♝",
-        PieceType.ROOK: "♜",
-        PieceType.QUEEN: "♛",
-        PieceType.KING: "♚",
-    }
-
-    for square, piece in game.board.items():
-        symbol = piece_symbols[piece.piece_type]
-        # White pieces with black outline, black pieces solid
-        if piece.player == Player.WHITE:
-            text = ax.text(
-                square.col + 0.5,
-                square.row + 0.5,
-                symbol,
-                fontsize=40,
-                ha="center",
-                va="center",
-                color="white",
-                weight="bold",
-            )
-            # Add black outline to white pieces for visibility
-            text.set_path_effects(
-                [
-                    path_effects.Stroke(linewidth=3, foreground="black"),
-                    path_effects.Normal(),
-                ]
-            )
-        else:
-            ax.text(
-                square.col + 0.5,
-                square.row + 0.5,
-                symbol,
-                fontsize=40,
-                ha="center",
-                va="center",
-                color="black",
-                weight="bold",
-            )
-
-    # Labels and limits to show capture areas
-    ax.set_xlim(-2.5, 10.5)
-    ax.set_ylim(-0.5, 8.5)
-    ax.set_aspect("equal")
-    ax.set_xticks([i + 0.5 for i in range(8)])
-    ax.set_xticklabels(["a", "b", "c", "d", "e", "f", "g", "h"])
-    ax.set_yticks([i + 0.5 for i in range(8)])
-    ax.set_yticklabels(["1", "2", "3", "4", "5", "6", "7", "8"])
-    ax.set_title(title, fontsize=16, weight="bold")
-    ax.grid(False)
+    # Draw pieces using standardized function
+    standard_draw_chess_pieces(ax, game)
 
     return fig
 
@@ -317,7 +266,6 @@ def test_check_detection() -> None:
     # Clear the board except kings
     game.board = {}
 
-    from chess_game import Piece
 
     game.board[Square.from_notation("e1")] = Piece(PieceType.KING, Player.WHITE)
     game.board[Square.from_notation("e8")] = Piece(PieceType.KING, Player.BLACK)
@@ -334,7 +282,6 @@ def test_visualize_check() -> None:
     game = ChessGame()
     game.board = {}
 
-    from chess_game import Piece
 
     # Simple check scenario: White rook checking black king
     game.board[Square.from_notation("e1")] = Piece(PieceType.KING, Player.WHITE)
@@ -358,7 +305,6 @@ def test_cannot_move_into_check() -> None:
     game = ChessGame()
     game.board = {}
 
-    from chess_game import Piece
 
     # King on e1, enemy rook on e3
     game.board[Square.from_notation("e1")] = Piece(PieceType.KING, Player.WHITE)
@@ -422,7 +368,6 @@ def test_stalemate() -> None:
     game = ChessGame()
     game.board = {}
 
-    from chess_game import Piece
 
     # Stalemate position: Black king on a8, white king on c7, white queen on b6
     # Black has no legal moves but is not in check
@@ -471,7 +416,6 @@ def test_piece_movement_queen() -> None:
     game = ChessGame()
     game.board = {}
 
-    from chess_game import Piece
 
     # Place queen in the middle
     game.board[Square.from_notation("d4")] = Piece(PieceType.QUEEN, Player.WHITE)

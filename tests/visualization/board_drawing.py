@@ -78,18 +78,6 @@ def draw_chess_board_grid(
                 )
                 ax.add_patch(rect)
 
-        # Label left capture area
-        ax.text(
-            left_capture_start + config.CAPTURE_COLS * sq_size / 2,
-            -0.3 * sq_size,
-            "Black\nCaptures",
-            ha="center",
-            va="top",
-            fontsize=8,
-            color="darkred",
-            weight="bold",
-        )
-
         # Draw right capture area (2x8 squares) - White's captured pieces
         for row in range(config.CAPTURE_ROWS + 1):
             y = row * sq_size
@@ -113,18 +101,6 @@ def draw_chess_board_grid(
                     linewidth=0.5,
                 )
                 ax.add_patch(rect)
-
-        # Label right capture area
-        ax.text(
-            right_capture_start + config.CAPTURE_COLS * sq_size / 2,
-            -0.3 * sq_size,
-            "White\nCaptures",
-            ha="center",
-            va="top",
-            fontsize=8,
-            color="darkblue",
-            weight="bold",
-        )
 
     # Draw main chess board grid lines
     for row in range(config.BOARD_ROWS + 1):

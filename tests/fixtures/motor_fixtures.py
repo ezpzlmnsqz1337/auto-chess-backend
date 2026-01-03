@@ -15,7 +15,7 @@ def create_test_controller() -> MotorController:
     """
     motor_x = create_test_motor("X")
     motor_y = create_test_motor("Y")
-    
+
     # Create mock electromagnet
     magnet = Electromagnet(config.ELECTROMAGNET_PIN)
 

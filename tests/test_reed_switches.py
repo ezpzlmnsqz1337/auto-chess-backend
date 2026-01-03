@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import pytest
 
 from reed_switch_controller import ReedSwitchController
+from tests.visualization import draw_reed_switch_state, setup_reed_switch_plot
 
 # Create output directory for visualizations
 OUTPUT_DIR = Path(__file__).parent / "output" / "reed_switches"
@@ -15,6 +16,8 @@ OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
+
+    from chess_game import ChessGame
 
 
 def test_reed_switch_initialization() -> None:
@@ -283,42 +286,32 @@ def test_visualize_starting_position() -> None:
 
 def test_visualize_move_sequence() -> None:
     """Test and visualize a sequence of moves (e2-e4, e7-e5)."""
+    from chess_game import ChessGame, Square
+
     reed = ReedSwitchController()
 
-    # Starting position
-    starting = [False] * 64
-    for square_idx in range(16):
-        starting[square_idx] = True
-    for square_idx in range(48, 64):
-        starting[square_idx] = True
+    # Create actual chess games for each position
+    game_start = ChessGame()
+    game_after_e4 = ChessGame()
+    game_after_e4.make_move(Square.from_notation("e2"), Square.from_notation("e4"))
+    game_after_e5 = ChessGame()
+    game_after_e5.make_move(Square.from_notation("e2"), Square.from_notation("e4"))
+    game_after_e5.make_move(Square.from_notation("e7"), Square.from_notation("e5"))
 
-    # After e2-e4 (pawn from e2 to e4)
-    after_e4 = starting.copy()
-    e2_idx = reed._square_to_index(1, 4)  # Row 1 (rank 2), column 4 (e file)
-    e4_idx = reed._square_to_index(3, 4)  # Row 3 (rank 4), column 4
-    after_e4[e2_idx] = False
-    after_e4[e4_idx] = True
-
-    # After e7-e5 (pawn from e7 to e5)
-    after_e5 = after_e4.copy()
-    e7_idx = reed._square_to_index(6, 4)  # Row 6 (rank 7), column 4
-    e5_idx = reed._square_to_index(4, 4)  # Row 4 (rank 5), column 4
-    after_e5[e7_idx] = False
-    after_e5[e5_idx] = True
+    # Track indices for highlighting
+    e2_idx = reed._square_to_index(1, 4)
+    e4_idx = reed._square_to_index(3, 4)
+    e7_idx = reed._square_to_index(6, 4)
+    e5_idx = reed._square_to_index(4, 4)
 
     # Create figure with subplots
     fig, axes = plt.subplots(1, 3, figsize=(18, 6))
 
-    # Plot each position
-    reed._board_state = starting
-    _draw_reed_switch_board(axes[0], reed, "Starting Position")
-
-    reed._board_state = after_e4
-    _draw_reed_switch_board(axes[1], reed, "After 1. e4")
+    # Plot each position using actual chess games
+    _draw_reed_switch_board_with_game(axes[0], game_start, "Starting Position")
+    _draw_reed_switch_board_with_game(axes[1], game_after_e4, "After 1. e4")
     _highlight_move(axes[1], reed, e2_idx, e4_idx)
-
-    reed._board_state = after_e5
-    _draw_reed_switch_board(axes[2], reed, "After 1. ... e5")
+    _draw_reed_switch_board_with_game(axes[2], game_after_e5, "After 1. ... e5")
     _highlight_move(axes[2], reed, e7_idx, e5_idx)
 
     plt.tight_layout()
@@ -399,24 +392,32 @@ def test_visualize_change_detection() -> None:
 
 
 def _draw_reed_switch_board(ax: "Axes", reed: ReedSwitchController, title: str) -> None:
-    """Draw chess board with reed switch states."""
-    ax.set_xlim(-0.5, 8)
-    ax.set_ylim(-0.5, 8)
-    ax.set_aspect("equal")
-    ax.set_title(title, fontsize=14, fontweight="bold")
-    ax.set_xlabel("File (a-h)", fontsize=12, fontweight="bold")
-    ax.set_ylabel("Rank (1-8)", fontsize=12, fontweight="bold")
+    """Draw chess board with reed switch states using actual chess pieces."""
+    from chess_game import ChessGame
 
-    # Draw board grid
-    _draw_board_grid(ax)
+    setup_reed_switch_plot(ax, title=title)
 
-    # Draw pieces based on reed switch states
-    for idx, occupied in enumerate(reed._board_state):
-        if occupied:
-            row, col = reed._index_to_square(idx)
-            _draw_piece(ax, row, col)
+    # Create a chess game from the reed switch board state
+    # Assume starting position if we have pieces on ranks 1-2 and 7-8
+    game = ChessGame()
+    has_starting_position = all(
+        reed._board_state[i] for i in range(16)
+    ) and all(
+        reed._board_state[i] for i in range(48, 64)
+    )
 
-    _add_board_labels(ax)
+    if has_starting_position:
+        # Use actual starting position
+        draw_reed_switch_state(ax, game=game)
+    else:
+        # Show simple indicators if not a standard position
+        draw_reed_switch_state(ax, board_state=reed._board_state)
+
+
+def _draw_reed_switch_board_with_game(ax: "Axes", game: "ChessGame", title: str) -> None:
+    """Draw chess board with reed switch states from a ChessGame object."""
+    setup_reed_switch_plot(ax, title=title)
+    draw_reed_switch_state(ax, game=game)
 
 
 def _draw_board_grid(ax: "Axes") -> None:
