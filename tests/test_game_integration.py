@@ -212,9 +212,6 @@ def test_complete_game_integration() -> None:
             }
         )
 
-        # TODO: Track current magnet position for proper move continuity
-        # current_pos = (0, 0)  # Start at home
-
         # State 2: White's first move
         move_white = ai.get_move(board)
         from_sq_white = Square(move_white.from_square // 8, move_white.from_square % 8)
