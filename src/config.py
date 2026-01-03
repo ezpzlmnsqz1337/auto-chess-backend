@@ -87,7 +87,11 @@ TOTAL_HEIGHT_STEPS = int(TOTAL_HEIGHT_MM * STEPS_PER_MM)
 # These define the limits of movement after homing
 # X-axis must accommodate left capture area (negative) and right capture area
 # Homing position is at left edge, before left capture area
-MAX_X_POSITION = RIGHT_CAPTURE_END_STEPS + 1000  # Right capture area + margin
+# Right capture area ends at RIGHT_CAPTURE_START_MM + CAPTURE_COLS*SQUARE_SIZE_MM
+# But we must account for MOTOR_X_OFFSET_MM which is added when converting board coords to steps
+MAX_X_POSITION = int(
+    (RIGHT_CAPTURE_START_MM + CAPTURE_COLS * SQUARE_SIZE_MM + MOTOR_X_OFFSET_MM) * STEPS_PER_MM + 1000
+)
 MAX_Y_POSITION = TOTAL_HEIGHT_STEPS + 1000  # Board height + margin
 
 # Step timing

@@ -10,7 +10,7 @@ Uses the application's piece_movement module for proper magnet control.
 """
 
 from pathlib import Path
-from typing import TypedDict
+from typing import Any, TypedDict
 
 import matplotlib.pyplot as plt
 
@@ -705,6 +705,164 @@ def test_queen_captures_pawn_with_obstacles() -> None:
     print(f"✓ Queen captures pawn (with obstacle avoidance) visualization saved: {output_path}")
 
 
+def test_black_knight_captures_white_pawn_with_obstacles() -> None:
+    """Black Knight captures White Pawn with obstacles in right capture area.
+
+    Tests obstacle avoidance for capturing white pieces:
+    - Black Knight moves from d4 to e2
+    - Captures white pawn at e2
+    - Routes pawn to right capture area (columns 8, 9) with obstacles
+    - Obstacles at (3, 8) and (4, 9) force diagonal navigation
+    """
+    # Set up game state with obstacles
+    game = ChessGame()
+
+    # Place white pieces - with obstacles on edges
+    game.board[Square.from_notation("a1")] = Piece(PieceType.ROOK, Player.WHITE)
+    game.board[Square.from_notation("h1")] = Piece(PieceType.ROOK, Player.WHITE)
+    game.board[Square.from_notation("b1")] = Piece(PieceType.KNIGHT, Player.WHITE)
+    game.board[Square.from_notation("g1")] = Piece(PieceType.KNIGHT, Player.WHITE)
+    game.board[Square.from_notation("c1")] = Piece(PieceType.BISHOP, Player.WHITE)
+    game.board[Square.from_notation("f1")] = Piece(PieceType.BISHOP, Player.WHITE)
+    game.board[Square.from_notation("d1")] = Piece(PieceType.QUEEN, Player.WHITE)
+    game.board[Square.from_notation("e1")] = Piece(PieceType.KING, Player.WHITE)
+
+    # White pawns on row 1
+    for col in range(8):
+        game.board[Square(1, col)] = Piece(PieceType.PAWN, Player.WHITE)
+
+    # Add white pieces in the middle - WITH OBSTACLES in path to right capture area!
+    game.board[Square.from_notation("c3")] = Piece(PieceType.PAWN, Player.WHITE)
+    game.board[Square.from_notation("e2")] = Piece(PieceType.PAWN, Player.WHITE)  # Target
+    game.board[Square.from_notation("f3")] = Piece(PieceType.PAWN, Player.WHITE)
+
+    # Place black pieces
+    game.board[Square.from_notation("e8")] = Piece(PieceType.KING, Player.BLACK)
+    game.board[Square.from_notation("d8")] = Piece(PieceType.QUEEN, Player.BLACK)
+    game.board[Square.from_notation("a8")] = Piece(PieceType.ROOK, Player.BLACK)
+    game.board[Square.from_notation("h8")] = Piece(PieceType.ROOK, Player.BLACK)
+    game.board[Square.from_notation("c8")] = Piece(PieceType.BISHOP, Player.BLACK)
+    game.board[Square.from_notation("f8")] = Piece(PieceType.BISHOP, Player.BLACK)
+    game.board[Square.from_notation("d4")] = Piece(PieceType.KNIGHT, Player.BLACK)  # Capturing piece
+    game.board[Square.from_notation("g8")] = Piece(PieceType.KNIGHT, Player.BLACK)
+
+    # Black pawns
+    for col in range(8):
+        game.board[Square(6, col)] = Piece(PieceType.PAWN, Player.BLACK)
+
+    # Define squares involved in capture
+    knight_square = Square.from_notation("d4")
+    pawn_square = Square.from_notation("e2")
+
+    # Get capture area placement for white pawn
+    occupied_capture_squares: set[tuple[int, int]] = set()
+
+    # Add already captured pieces in the RIGHT capture area to test obstacle avoidance
+    # White pieces go to RIGHT capture area (columns 8, 9)
+    occupied_capture_squares.add((3, 8))   # Row 3, inner right capture column
+    occupied_capture_squares.add((4, 9))   # Row 4, outer right capture column
+
+    capture_placement = get_next_capture_slot(
+        captured_piece=Piece(PieceType.PAWN, Player.WHITE),
+        occupied_capture_squares=occupied_capture_squares,
+    )
+    assert capture_placement is not None
+    # NOTE: Do NOT add capture_placement to occupied_capture_squares before planning path
+    # The destination is where we're going, not an obstacle to avoid!
+
+    controller = create_test_controller()
+
+    # State 1: Before capture
+    state1_game = ChessGame()
+    state1_game.board = game.board.copy()
+
+    # State 2: Remove captured pawn to capture area WITH OBSTACLE AVOIDANCE
+    path_x_mm_2, path_y_mm_2, magnet_states_2, speeds_2, timestamps_2 = _capture_piece_movement_to_capture_area(
+        controller, pawn_square, capture_placement.row, capture_placement.col, game, occupied_capture_squares
+    )
+
+    state2_game = ChessGame()
+    state2_game.board = game.board.copy()
+    del state2_game.board[pawn_square]
+
+    # State 3: Move capturing knight
+    path_x_mm_3, path_y_mm_3, magnet_states_3, speeds_3, timestamps_3 = _capture_piece_movement(
+        controller, knight_square, pawn_square, game
+    )
+
+    state3_game = ChessGame()
+    state3_game.board = game.board.copy()
+    state3_game.board[pawn_square] = state3_game.board.pop(knight_square)
+
+    # Create visualization
+    fig = plt.figure(figsize=(16, 12))
+    gs = fig.add_gridspec(3, 3, hspace=0.35, wspace=0.3)
+
+    states: list[dict[str, Any]] = [
+        {
+            "title": "1. Before Capture\nBlack Knight on d4, White Pawn on e2\nObstacles: Pawns on c3, f3",
+            "game": state1_game,
+            "path_x": [],
+            "path_y": [],
+            "magnet_states": [],
+            "speeds": [],
+            "time": [],
+        },
+        {
+            "title": "2. Remove Captured Piece\nWhite Pawn e2 → Capture Area (5,8)\nPath Routes Around Obstacles!",
+            "game": state2_game,
+            "path_x": path_x_mm_2,
+            "path_y": path_y_mm_2,
+            "magnet_states": magnet_states_2,
+            "speeds": speeds_2,
+            "time": timestamps_2,
+        },
+        {
+            "title": "3. Move Capturing Piece\nBlack Knight d4 → e2",
+            "game": state3_game,
+            "path_x": path_x_mm_3,
+            "path_y": path_y_mm_3,
+            "magnet_states": magnet_states_3,
+            "speeds": speeds_3,
+            "time": timestamps_3,
+        },
+    ]
+
+    for col_idx, state in enumerate(states):
+        # Row 0: Chess board
+        ax_board = fig.add_subplot(gs[0, col_idx])
+        setup_chess_board_plot(ax_board, title=state["title"], show_capture_areas=True)
+        standard_draw_chess_pieces(ax_board, state["game"])
+
+        # Row 1: Movement plot
+        ax_movement = fig.add_subplot(gs[1, col_idx])
+        setup_movement_plot(ax_movement, title="Magnet Movement", show_capture_areas=True)
+        if state["path_x"]:
+            draw_movement_path(
+                ax_movement, state["path_x"], state["path_y"], state["magnet_states"]
+            )
+
+        # Row 2: Speed plot
+        ax_speed = fig.add_subplot(gs[2, col_idx])
+        setup_speed_plot(ax_speed, title="Magnet Speed Profile")
+        if state["speeds"]:
+            draw_speed_profile(ax_speed, state["time"], state["speeds"])
+
+    fig.suptitle(
+        "AI Capture Sequence: Black Knight takes White Pawn (Nxe2)\nWith Obstacle Avoidance Path Planning",
+        fontsize=16,
+        fontweight="bold",
+        y=0.995,
+    )
+
+    # Save plot
+    output_path = OUTPUT_DIR / "black_knight_captures_white_pawn_obstacles.png"
+    plt.savefig(output_path, dpi=150, bbox_inches="tight")
+    plt.close()
+
+    print(f"✓ Black knight captures white pawn (with obstacle avoidance) visualization saved: {output_path}")
+
+
 if __name__ == "__main__":
     print("Running capture handling tests with motor movement visualization...")
     print(f"Output directory: {OUTPUT_DIR}\n")
@@ -713,6 +871,7 @@ if __name__ == "__main__":
     test_pawn_captures_pawn()
     test_bishop_captures_knight()
     test_queen_captures_pawn_with_obstacles()
+    test_black_knight_captures_white_pawn_with_obstacles()
 
     print("\n✅ All capture handling tests passed!")
     print(f"📊 Visualizations saved to: {OUTPUT_DIR}/")
