@@ -85,7 +85,7 @@ def _draw_chess_pieces(ax: "Axes", game: ChessGame) -> None:
                 square.col + 0.5,
                 square.row + 0.5,
                 symbol,
-                fontsize=36,
+                fontsize=20,
                 ha="center",
                 va="center",
                 color="white",
@@ -95,7 +95,7 @@ def _draw_chess_pieces(ax: "Axes", game: ChessGame) -> None:
             # Add black outline to white pieces for visibility
             text.set_path_effects(
                 [
-                    path_effects.Stroke(linewidth=3, foreground="black"),
+                    path_effects.Stroke(linewidth=2, foreground="black"),
                     path_effects.Normal(),
                 ]
             )
@@ -104,7 +104,7 @@ def _draw_chess_pieces(ax: "Axes", game: ChessGame) -> None:
                 square.col + 0.5,
                 square.row + 0.5,
                 symbol,
-                fontsize=36,
+                fontsize=20,
                 ha="center",
                 va="center",
                 color="black",
@@ -424,7 +424,9 @@ def test_complete_game_integration() -> None:
         for col_idx, state in enumerate(states):
             # Row 1: Chess board with pieces
             ax1 = fig.add_subplot(gs[0, col_idx])
-            setup_chess_board_plot(ax1, title=f"{state['title']}\n{state['subtitle']}", show_coordinates=False)
+            setup_chess_board_plot(
+                ax1, title=f"{state['title']}\n{state['subtitle']}", show_coordinates=False
+            )
             standard_draw_chess_pieces(ax1, state["game"])
 
             # Row 2: Magnet movement path (motor coordinates)

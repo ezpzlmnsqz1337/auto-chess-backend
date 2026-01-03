@@ -266,7 +266,6 @@ def test_check_detection() -> None:
     # Clear the board except kings
     game.board = {}
 
-
     game.board[Square.from_notation("e1")] = Piece(PieceType.KING, Player.WHITE)
     game.board[Square.from_notation("e8")] = Piece(PieceType.KING, Player.BLACK)
 
@@ -281,7 +280,6 @@ def test_visualize_check() -> None:
     """Visualize a check position."""
     game = ChessGame()
     game.board = {}
-
 
     # Simple check scenario: White rook checking black king
     game.board[Square.from_notation("e1")] = Piece(PieceType.KING, Player.WHITE)
@@ -304,7 +302,6 @@ def test_cannot_move_into_check() -> None:
     """Test that king cannot move into check."""
     game = ChessGame()
     game.board = {}
-
 
     # King on e1, enemy rook on e3
     game.board[Square.from_notation("e1")] = Piece(PieceType.KING, Player.WHITE)
@@ -368,7 +365,6 @@ def test_stalemate() -> None:
     game = ChessGame()
     game.board = {}
 
-
     # Stalemate position: Black king on a8, white king on c7, white queen on b6
     # Black has no legal moves but is not in check
     game.board[Square.from_notation("a8")] = Piece(PieceType.KING, Player.BLACK)
@@ -415,7 +411,6 @@ def test_piece_movement_queen() -> None:
     """Test queen moves in all directions."""
     game = ChessGame()
     game.board = {}
-
 
     # Place queen in the middle
     game.board[Square.from_notation("d4")] = Piece(PieceType.QUEEN, Player.WHITE)

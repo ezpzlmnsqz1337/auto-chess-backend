@@ -206,7 +206,7 @@ def draw_chess_pieces(ax: "Axes", game: "ChessGame") -> None:
                 square.col + 0.5,
                 square.row + 0.5,
                 symbol,
-                fontsize=36,
+                fontsize=20,
                 ha="center",
                 va="center",
                 color="white",
@@ -216,7 +216,7 @@ def draw_chess_pieces(ax: "Axes", game: "ChessGame") -> None:
             # Add black outline to white pieces for visibility
             text.set_path_effects(
                 [
-                    path_effects.Stroke(linewidth=3, foreground="black"),
+                    path_effects.Stroke(linewidth=2, foreground="black"),
                     path_effects.Normal(),
                 ]
             )
@@ -225,7 +225,7 @@ def draw_chess_pieces(ax: "Axes", game: "ChessGame") -> None:
                 square.col + 0.5,
                 square.row + 0.5,
                 symbol,
-                fontsize=36,
+                fontsize=20,
                 ha="center",
                 va="center",
                 color="black",

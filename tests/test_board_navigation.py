@@ -146,7 +146,9 @@ def test_snake_pattern_all_squares() -> None:
     target_positions = get_snake_pattern()
 
     # Capture actual movement path
-    positions, timestamps, speeds, magnet_states = capture_movement_path(controller, target_positions)
+    positions, timestamps, speeds, magnet_states = capture_movement_path(
+        controller, target_positions
+    )
 
     # Convert positions to mm for plotting
     x_mm, y_mm = convert_steps_to_mm(positions)

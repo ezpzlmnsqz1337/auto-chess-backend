@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 
 import matplotlib.patheffects as path_effects
 
+import config
 from chess_game import ChessGame, PieceType, Player
 from tests.visualization.board_drawing import draw_chess_board_grid
 
@@ -15,6 +16,7 @@ def setup_chess_board_plot(
     ax: "Axes",
     title: str | None = None,
     show_coordinates: bool = True,
+    show_capture_areas: bool = True,
 ) -> None:
     """
     Set up a chess board plot with standard styling for game state visualization.
@@ -23,14 +25,15 @@ def setup_chess_board_plot(
         ax: Matplotlib axes
         title: Optional title for the plot
         show_coordinates: Whether to show a-h and 1-8 labels
+        show_capture_areas: Whether to show capture areas on the sides
     """
-    draw_chess_board_grid(ax, show_capture_areas=False, use_motor_coordinates=False)
+    draw_chess_board_grid(ax, show_capture_areas=show_capture_areas, use_motor_coordinates=False)
 
     if title:
         ax.set_title(title, fontsize=11, fontweight="bold")
 
     if show_coordinates:
-        # Add file labels (a-h) on x-axis
+        # Add file labels (a-h) on x-axis (only for main board)
         ax.set_xticks([i + 0.5 for i in range(8)])
         ax.set_xticklabels(["a", "b", "c", "d", "e", "f", "g", "h"])
         # Add rank labels (1-8) on y-axis
@@ -39,6 +42,17 @@ def setup_chess_board_plot(
     else:
         ax.set_xticks([])
         ax.set_yticks([])
+
+    # Adjust view limits to show capture areas if enabled
+    if show_capture_areas:
+        gap_in_squares = config.CAPTURE_OFFSET_MM / config.SQUARE_SIZE_MM
+        left_extent = -(config.CAPTURE_COLS + gap_in_squares)
+        right_extent = 8 + config.CAPTURE_COLS + gap_in_squares
+        ax.set_xlim(left_extent - 0.2, right_extent + 0.2)
+        ax.set_ylim(-0.2, 8.2)
+    else:
+        ax.set_xlim(-0.2, 8.2)
+        ax.set_ylim(-0.2, 8.2)
 
     ax.set_aspect("equal")
 
@@ -71,7 +85,7 @@ def draw_chess_pieces(ax: "Axes", game: ChessGame) -> None:
                 square.col + 0.5,
                 square.row + 0.5,
                 symbol,
-                fontsize=36,
+                fontsize=20,
                 ha="center",
                 va="center",
                 color="white",
@@ -81,7 +95,7 @@ def draw_chess_pieces(ax: "Axes", game: ChessGame) -> None:
             # Add black outline to white pieces for visibility
             text.set_path_effects(
                 [
-                    path_effects.Stroke(linewidth=3, foreground="black"),
+                    path_effects.Stroke(linewidth=2, foreground="black"),
                     path_effects.Normal(),
                 ]
             )
@@ -90,7 +104,7 @@ def draw_chess_pieces(ax: "Axes", game: ChessGame) -> None:
                 square.col + 0.5,
                 square.row + 0.5,
                 symbol,
-                fontsize=36,
+                fontsize=20,
                 ha="center",
                 va="center",
                 color="black",

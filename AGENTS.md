@@ -69,6 +69,8 @@ Looking from white's perspective (y-axis points up):
   - Handles columns 8, 9 for right capture area
   - Applies 24mm offset between main board and capture areas
 - `steps_to_mm(x, y)` - Steps to millimeters conversion
+- `steps_to_square(x, y)` - Motor steps to square coordinates (reverse conversion)
+  - Handles main board (0-7) and capture areas (-2, -1, 8, 9)
 - Board dimension queries (main and extended)
 
 **main.py**
@@ -87,6 +89,28 @@ Looking from white's perspective (y-axis points up):
   - En passant capture
   - Pawn promotion
   - Move validation ensuring king safety
+
+**piece_movement.py**
+- `travel()` - Move to position with electromagnet OFF
+- `move_piece()` - Move piece with magnet control and obstacle avoidance
+- `move_piece_to_capture_area()` - Move captured pieces to capture area
+- `_plan_capture_area_path()` - Greedy pathfinding for capture area navigation
+  - Excludes starting square from obstacle checking
+  - Detects when stuck on edge rows and enters capture area directly
+  - Uses diagonal moves when possible to avoid obstacles
+  - Switches between inner (-1/8) and outer (-2/9) capture columns as needed
+  - Horizontal → Diagonal → Vertical strategy for obstacle avoidance
+
+**capture_management.py**
+- `get_next_capture_slot()` - Determines placement for captured pieces
+  - Black pieces → LEFT capture area (columns -2, -1)
+  - White pieces → RIGHT capture area (columns 8, 9)
+  - Maintains chess piece layout (row 0: major pieces, row 1: pawns, row 2+: overflow)
+- `CaptureAreaPlacement` - Dataclass with position and LED information
+
+**knight_pathfinding.py**
+- `plan_knight_movement()` - L-shaped pathfinding for knight moves
+  - Avoids occupied squares during two-step movement
 
 **led/ws2812b_controller.py**
 - `WS2812BController`: Controls 96 individually addressable RGB LEDs
@@ -172,12 +196,15 @@ pytest tests/ -v -s
 **Test Structure**:
 - `tests/test_board_navigation.py` - Chess board navigation and movement tests
 - `tests/test_extended_board.py` - Extended board coordinate system tests (capture areas)
+- `tests/test_capture_handling.py` - Capture sequence visualization with obstacle avoidance
+- `tests/test_path_verification.py` - Path planning verification (ensures no collisions)
 - `tests/test_utils.py` - Visualization utilities with capture area rendering
 - `tests/output/` - Generated visualization plots
   - `movement/` - Movement path and speed analysis (with capture areas shown)
   - `chess/` - Chess game logic visualizations
   - `leds/` - LED pattern visualizations
   - `reed_switches/` - Reed switch detection visualizations
+  - `captures/` - Capture sequence visualizations with obstacle avoidance paths
 
 ### Pre-commit Workflow
 
@@ -220,6 +247,31 @@ If committing changes, ensure that:
 - Easy calibration (step counts, speeds)
 - Direction inversion simple to toggle
 - Future scaling to multiple boards
+
+### Module Import Path Consistency
+**CRITICAL**: Always import from the pythonpath-relative path, never with `src.` prefix.
+
+Since `src/` is configured in pythonpath (`pyproject.toml`), all imports should use:
+```python
+from chess_game import Piece, Player, PieceType  # ✅ Correct
+from capture_management import get_next_capture_slot  # ✅ Correct
+```
+
+**Never use**:
+```python
+from src.chess_game import Piece  # ❌ Wrong - creates duplicate module
+from src.capture_management import ...  # ❌ Wrong
+```
+
+**Why this matters**: Python treats `chess_game` and `src.chess_game` as different modules, even if they're the same source file. This causes:
+- Enum comparison failures (`Piece.player == Player.BLACK` returns `False`)
+- Instance checks fail (`isinstance(obj, Piece)` returns `False`)
+- Duplicate class definitions in memory
+
+**Symptoms of mixed imports**:
+- Enum comparisons mysteriously return False
+- Type checks fail despite correct types
+- `is` comparisons fail for what should be the same object
 
 ## Implementation Details
 
@@ -287,6 +339,36 @@ Velocity
 **Diagonal optimization**: When both axes move, a 0.7 multiplier is applied to step delays (30% speed increase) since Bresenham efficiently alternates motor steps.
 
 **For short moves**: If total steps < 2× `ACCELERATION_STEPS`, ramp is automatically reduced to fit.
+
+### Obstacle Avoidance Path Planning
+
+The system uses **greedy local pathfinding** to navigate pieces around obstacles when moving to capture areas:
+
+**Main Board Navigation**:
+1. **Horizontal movement** - Try moving toward target edge column (0 for left, 7 for right)
+2. **Diagonal moves** - If blocked, try diagonal movements (up/down + horizontal)
+3. **Vertical moves** - If still blocked, move vertically toward target row
+4. **Edge routing** - As last resort, find clear vertical path to edge row
+
+**Key features**:
+- Excludes starting square from obstacle checking (piece is already there)
+- Detects when stuck on edge rows (0 or 7) and enters capture area directly
+- Makes local decisions at each step rather than pre-computing entire path
+
+**Capture Area Navigation**:
+Once at board edge, the piece enters the capture area corridor:
+1. **Enter inner column** - Start in inner capture column (-1 for left, 8 for right)
+2. **Move vertically** - Travel toward target row
+3. **Diagonal avoidance** - When encountering obstacle at next row:
+   - First try other column at next row (diagonal move)
+   - Only if both columns blocked at next row, switch columns at current row
+4. **Final positioning** - Move to target column at destination row
+
+**Design rationale**:
+- Diagonal moves preferred in capture area (matches main board strategy)
+- Minimizes unnecessary horizontal movements
+- Avoids moving into occupied squares
+- Clean, efficient paths that appear natural
 
 ### Step Timing
 

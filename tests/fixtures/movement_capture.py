@@ -1,5 +1,6 @@
 """Movement path capture utilities for testing."""
 
+from collections.abc import Callable
 from unittest.mock import patch
 
 import config
@@ -113,7 +114,9 @@ def capture_movement_path(
                     path.append(pos)
                     timestamps.append(0.0)
                     velocities.append(0.0)
-                    magnet_states.append(controller.electromagnet.is_on if controller.electromagnet else False)
+                    magnet_states.append(
+                        controller.electromagnet.is_on if controller.electromagnet else False
+                    )
                     last_pos = pos
                     last_time = 0.0
                     # Reset last_sampled_step to avoid skipping first sample of next move
@@ -125,12 +128,124 @@ def capture_movement_path(
                 path.append(pos)
                 t = simulated_time[0]
                 timestamps.append(t)
-                magnet_states.append(controller.electromagnet.is_on if controller.electromagnet else False)
+                magnet_states.append(
+                    controller.electromagnet.is_on if controller.electromagnet else False
+                )
                 # Set velocity to 0 at waypoints since we're at rest
                 # (avoid artifacts from long intervals between last sample and waypoint)
                 velocities.append(0.0)
                 last_pos = pos
                 last_time = t
+        finally:
+            # Restore original methods
+            controller.motor_x._pulse_step = original_pulse_x  # type: ignore[method-assign]
+            controller.motor_y._pulse_step = original_pulse_y  # type: ignore[method-assign]
+
+    return path, timestamps, velocities, magnet_states
+
+
+def capture_movement_path_during_execution(
+    controller: MotorController,
+    execution_function: Callable[[], None],
+    sample_rate: int = 10,
+) -> tuple[list[tuple[int, int]], list[float], list[float], list[bool]]:
+    """
+    Capture the actual path the motors take during execution of a function.
+
+    Uses mock time.sleep to run without delays while still using real movement logic.
+    Captures intermediate positions during movement to show the actual path.
+    This version allows capturing during any function execution (e.g., move_piece).
+
+    Args:
+        controller: Motor controller instance
+        execution_function: Function to execute while capturing path (no arguments)
+        sample_rate: Capture position every N steps (default: 10)
+
+    Returns:
+        Tuple of (positions, timestamps, velocities, magnet_states) where:
+        - positions: List of all (x, y) positions visited
+        - timestamps: Simulated time in seconds for each position
+        - velocities: Velocity in mm/s at each captured point
+        - magnet_states: List of boolean indicating if magnet was on at each point
+    """
+    path = [controller.get_position()]
+    timestamps = [0.0]
+    velocities = [0.0]
+    magnet_states = [controller.electromagnet.is_on if controller.electromagnet else False]
+    step_counter = [0]
+    simulated_time = [0.0]  # Track simulated time based on step delays
+    last_pos = path[0]
+    last_time = 0.0
+    last_sampled_step = [-sample_rate]  # Track when we last sampled to prevent double-sampling
+
+    # Store original _pulse_step methods
+    original_pulse_x = controller.motor_x._pulse_step
+    original_pulse_y = controller.motor_y._pulse_step
+
+    def record_sample() -> None:
+        """Record position and velocity sample (called once per sample interval)."""
+        nonlocal last_pos, last_time
+        pos = controller.get_position()
+        path.append(pos)
+        magnet_states.append(controller.electromagnet.is_on if controller.electromagnet else False)
+        t = simulated_time[0]
+        timestamps.append(t)
+        # Calculate velocity from actual distance traveled / time elapsed
+        dx = (pos[0] - last_pos[0]) / config.STEPS_PER_MM
+        dy = (pos[1] - last_pos[1]) / config.STEPS_PER_MM
+        distance = (dx**2 + dy**2) ** 0.5
+        dt = t - last_time
+        velocity = distance / dt if dt > 0 else 0.0
+        velocities.append(velocity)
+        last_pos = pos
+        last_time = t
+
+    def tracked_pulse_x() -> None:
+        """Wrap X motor pulse to capture positions and calculate simulated time."""
+        original_pulse_x()
+        # Add the step delay to simulated time
+        simulated_time[0] += controller.motor_x.step_delay + controller.motor_x.step_pulse_duration
+        step_counter[0] += 1
+        # Sample if we're at a new sample interval
+        current_sample_interval = step_counter[0] // sample_rate
+        last_sample_interval = last_sampled_step[0] // sample_rate
+        if current_sample_interval > last_sample_interval:
+            record_sample()
+            last_sampled_step[0] = step_counter[0]
+
+    def tracked_pulse_y() -> None:
+        """Wrap Y motor pulse to capture positions and calculate simulated time."""
+        original_pulse_y()
+        # Add Y's delay too - motors step sequentially, not simultaneously
+        simulated_time[0] += controller.motor_y.step_delay + controller.motor_y.step_pulse_duration
+        step_counter[0] += 1
+        # Sample if we're at a new sample interval
+        current_sample_interval = step_counter[0] // sample_rate
+        last_sample_interval = last_sampled_step[0] // sample_rate
+        if current_sample_interval > last_sample_interval:
+            record_sample()
+            last_sampled_step[0] = step_counter[0]
+
+    # Mock time.sleep in motor.stepper_motor module to make tests instant
+    with patch("motor.stepper_motor.time.sleep"):
+        # Replace _pulse_step methods with tracked versions
+        controller.motor_x._pulse_step = tracked_pulse_x  # type: ignore[method-assign]
+        controller.motor_y._pulse_step = tracked_pulse_y  # type: ignore[method-assign]
+
+        try:
+            # Execute the provided function
+            execution_function()
+
+            # Always capture final position
+            pos = controller.get_position()
+            path.append(pos)
+            t = simulated_time[0]
+            timestamps.append(t)
+            magnet_states.append(
+                controller.electromagnet.is_on if controller.electromagnet else False
+            )
+            # Set velocity to 0 at the end since we're at rest
+            velocities.append(0.0)
         finally:
             # Restore original methods
             controller.motor_x._pulse_step = original_pulse_x  # type: ignore[method-assign]

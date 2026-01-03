@@ -400,9 +400,7 @@ def _draw_reed_switch_board(ax: "Axes", reed: ReedSwitchController, title: str) 
     # Create a chess game from the reed switch board state
     # Assume starting position if we have pieces on ranks 1-2 and 7-8
     game = ChessGame()
-    has_starting_position = all(
-        reed._board_state[i] for i in range(16)
-    ) and all(
+    has_starting_position = all(reed._board_state[i] for i in range(16)) and all(
         reed._board_state[i] for i in range(48, 64)
     )
 

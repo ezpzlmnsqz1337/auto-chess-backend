@@ -643,9 +643,12 @@ reed.close()
 - **Trapezoidal Velocity Profiles**: Smooth acceleration and deceleration
 - **Direction Control**: Easily invert motor directions via configuration
 - **Safety Limits**: Prevents movement beyond max positions
-- **Reed Switch Integration**: 64 magnetic sensors detect piece positions on every square
+- **Capture Area Support**: Extended board with 2×8 capture areas on each side for captured pieces
+- **Obstacle Avoidance**: Greedy local pathfinding navigates around pieces when moving to capture areas
+- **Reed Switch Integration**: 96 magnetic sensors detect piece positions (64 main board + 32 capture areas)
 - **Human Move Detection**: Automatically detects when players pick up and place pieces
 - **Real-time Board Monitoring**: Continuous scanning with debouncing for reliable detection
+- **LED Feedback**: 96 individually addressable RGB LEDs for visual feedback (main board + capture areas)
 - **Error Handling**: Validates moves and provides detailed error messages
 - **GPIO-free Simulation**: Works on non-Pi systems for development (limits switch not available)
 
@@ -656,16 +659,19 @@ auto-chess-backend/
 ├── src/
 │   ├── main.py                    # CLI interface
 │   ├── config.py                  # Configuration constants
-│   ├── board_navigation.py        # Chess coordinate conversion
+│   ├── board_navigation.py        # Chess coordinate conversion (with capture areas)
+│   ├── piece_movement.py          # High-level piece movement with obstacle avoidance
+│   ├── capture_management.py      # Capture area placement logic
+│   ├── knight_pathfinding.py      # L-shaped knight movement
 │   ├── demo_patterns.py           # Calibration patterns
 │   ├── motor/
 │   │   ├── motor_controller.py    # Motor coordination
 │   │   ├── stepper_motor.py       # Individual motor control
 │   │   └── electromagnet.py       # Magnet control
 │   ├── led/
-│   │   └── ws2812b_controller.py  # LED control and patterns
+│   │   └── ws2812b_controller.py  # LED control and patterns (96 LEDs)
 │   ├── reed_switch/
-│   │   └── controller.py          # Reed switch multiplexer control
+│   │   └── controller.py          # Reed switch multiplexer control (96 switches)
 │   └── chess_game/
 │       ├── game.py                # Chess rules and validation
 │       ├── piece.py               # Piece types and representation
@@ -675,6 +681,11 @@ auto-chess-backend/
 │   ├── fixtures/                  # Test fixtures and utilities
 │   ├── visualization/             # Board visualization utilities
 │   └── output/                    # Generated test visualizations
+│       ├── captures/              # Capture sequence visualizations
+│       ├── movement/              # Movement path analysis
+│       ├── chess/                 # Chess game visualizations
+│       ├── leds/                  # LED pattern visualizations
+│       └── reed_switches/         # Reed switch visualizations
 ├── analysis/                      # Performance analysis
 ├── README.md                      # This file
 ├── AGENTS.md                      # Development notes

@@ -27,9 +27,7 @@ def setup_movement_plot(
         title: Optional title for the plot
         show_capture_areas: Whether to show capture areas (default: True)
     """
-    draw_chess_board_grid(
-        ax, show_capture_areas=show_capture_areas, use_motor_coordinates=True
-    )
+    draw_chess_board_grid(ax, show_capture_areas=show_capture_areas, use_motor_coordinates=True)
 
     if title:
         ax.set_title(title, fontsize=10)
@@ -135,7 +133,7 @@ def draw_waypoint_markers(
 
         ax.plot(x_plot, y, marker, color=color, markersize=5, zorder=20)
         ax.annotate(
-            f"WP{i+1}",
+            f"WP{i + 1}",
             (x_plot, y),
             xytext=(-5, 5),
             textcoords="offset points",

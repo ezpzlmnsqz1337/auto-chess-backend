@@ -70,7 +70,7 @@ def draw_reed_switch_state(
                     "♟",
                     ha="center",
                     va="center",
-                    fontsize=36,
+                    fontsize=20,
                     color="darkgreen",
                     weight="bold",
                     zorder=10,

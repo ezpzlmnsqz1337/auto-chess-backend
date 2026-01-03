@@ -91,11 +91,12 @@ def plot_path_with_magnet_state(
 
     # Add legend entries (create dummy lines for legend)
     from matplotlib.lines import Line2D
+
     legend_elements = [
-        Line2D([0], [0], color='red', lw=2.5, label='Magnet ON'),
-        Line2D([0], [0], color='green', lw=2.5, label='Magnet OFF')
+        Line2D([0], [0], color="red", lw=2.5, label="Magnet ON"),
+        Line2D([0], [0], color="green", lw=2.5, label="Magnet OFF"),
     ]
-    ax.legend(handles=legend_elements, loc='upper right', fontsize=8)
+    ax.legend(handles=legend_elements, loc="upper right", fontsize=8)
 
 
 def add_start_end_markers(

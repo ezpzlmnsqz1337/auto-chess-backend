@@ -82,6 +82,49 @@ def steps_to_mm(x_steps: int, y_steps: int) -> tuple[float, float]:
     return (x_mm, y_mm)
 
 
+def steps_to_square(x_steps: int, y_steps: int) -> tuple[int, int]:
+    """
+    Convert motor step positions to square coordinates (row, col).
+
+    This works for both main board squares (0-7) and capture area squares
+    (columns -2, -1 for left capture, 8, 9 for right capture).
+
+    Args:
+        x_steps: X motor position in steps
+        y_steps: Y motor position in steps
+
+    Returns:
+        Tuple of (row, col) where row is 0-7 and col can be -2 to 9
+    """
+    # Convert steps to board mm coordinates
+    x_mm, y_mm = steps_to_mm(x_steps, y_steps)
+
+    # Calculate which square this corresponds to
+    # For columns < 0 (left capture), need to account for the offset
+    # For columns >= 8 (right capture), need to account for the offset
+
+    # First, determine the row (0-7)
+    row = int(y_mm / config.SQUARE_SIZE_MM)
+
+    # For column, we need to handle the capture area offsets
+    if x_mm < 0:
+        # Left capture area (columns -2, -1)
+        # The capture area starts at -CAPTURE_OFFSET_MM - 2*SQUARE_SIZE_MM
+        capture_start = -config.CAPTURE_OFFSET_MM - (config.CAPTURE_COLS * config.SQUARE_SIZE_MM)
+        col = int((x_mm - capture_start) / config.SQUARE_SIZE_MM) - config.CAPTURE_COLS
+    elif x_mm >= config.BOARD_COLS * config.SQUARE_SIZE_MM:
+        # Right capture area (columns 8, 9)
+        # The capture area starts at BOARD_COLS*SQUARE_SIZE_MM + CAPTURE_OFFSET_MM
+        board_width = config.BOARD_COLS * config.SQUARE_SIZE_MM
+        capture_start = board_width + config.CAPTURE_OFFSET_MM
+        col = config.BOARD_COLS + int((x_mm - capture_start) / config.SQUARE_SIZE_MM)
+    else:
+        # Main board (columns 0-7)
+        col = int(x_mm / config.SQUARE_SIZE_MM)
+
+    return (row, col)
+
+
 def get_board_dimensions_mm() -> tuple[float, float]:
     """Get the board dimensions in millimeters."""
     return (config.BOARD_COLS * config.SQUARE_SIZE_MM, config.BOARD_ROWS * config.SQUARE_SIZE_MM)
