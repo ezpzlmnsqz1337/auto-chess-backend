@@ -18,10 +18,10 @@ This project uses a Raspberry Pi Zero 2W to control two NEMA stepper motors (X a
 - **Diode** - 1N5408 (3A, 1000V) flyback protection
 - **Power supply** - 24V 2A+ rated for motors, electromagnet, and Pi
 - **Resistors** - 4.7kΩ pulldown resistors for step pins (optional), 10kΩ for MOSFET gate
-- **64× Reed switches** - 2×14mm N/O (Normally Open) magnetic switches for piece detection
-- **4× CD74HC4067** - 16-channel analog/digital multiplexers for reading reed switches
-- **64× Pull-down resistors** - 10kΩ resistors for reed switch inputs (optional - can use Pi internal pull-downs)
-- **64× WS2812B LEDs** - Individually addressable RGB LEDs (5050 SMD, 5V, 0.24W each) for square illumination
+- **96× Reed switches** - 2×14mm N/O (Normally Open) magnetic switches for piece detection (64 main board + 32 capture areas)
+- **6× CD74HC4067** - 16-channel analog/digital multiplexers for reading reed switches (96 squares ÷ 16 = 6)
+- **96× Pull-down resistors** - 10kΩ resistors for reed switch inputs (optional - can use Pi internal pull-downs)
+- **96× WS2812B LEDs** - Individually addressable RGB LEDs (5050 SMD, 5V, 0.24W each) for square illumination (64 main + 32 capture)
 
 ### Power Supply Options
 
@@ -29,9 +29,9 @@ The system requires power for:
 - Raspberry Pi Zero 2W: ~1-2W (5V @ 0.2-0.4A)
 - 2× NEMA steppers: ~12W (24V @ 0.5A)
 - Electromagnet: ~7-19W (24V @ 0.3-0.8A)
-- 64× WS2812B LEDs: ~15W max at full white (5V @ 3A), typical usage 3-5W
+- 96× WS2812B LEDs: ~23W max at full white (5V @ 4.6A), typical usage 5-8W
 
-**Total: ~35-50W typical, ~60W maximum**
+**Total: ~40-55W typical, ~80W maximum**
 
 #### Option 1: USB-C PD (Power Delivery) - Modern & Elegant
 
@@ -132,7 +132,7 @@ For visual feedback using 64 individually addressable RGB LEDs:
 
 ### Reed Switch Multiplexer Pins
 
-For piece detection using 64 reed switches connected via 4× CD74HC4067 multiplexers:
+For piece detection using 96 reed switches (64 main board + 32 capture areas) connected via 6× CD74HC4067 multiplexers:
 
 | Function | GPIO Pin |
 |----------|----------|
@@ -144,8 +144,13 @@ For piece detection using 64 reed switches connected via 4× CD74HC4067 multiple
 | Mux 2 Signal (a3-h3, a4-h4) | GPIO 19 |
 | Mux 3 Signal (a5-h5, a6-h6) | GPIO 26 |
 | Mux 4 Signal (a7-h7, a8-h8) | GPIO 4 |
+| Mux 5 Signal (left capture L1-L16) | GPIO 14 |
+| Mux 6 Signal (right capture R1-R16) | GPIO 11 |
 
-**Note**: You need **4 multiplexers** to cover all 64 squares (not 2). Each CD74HC4067 handles 16 channels.
+**Note**: You need **6 multiplexers** to cover all 96 squares. Each CD74HC4067 handles 16 channels:
+- **Muxes 1-4**: Main chess board (64 squares)
+- **Mux 5**: Left capture area (16 squares, 2×8)
+- **Mux 6**: Right capture area (16 squares, 2×8)
 
 Configure limit switches with pullup resistors to GPIO pins. The system detects home position when the pin reads LOW.
 
@@ -184,18 +189,18 @@ Electromagnet (-) → 24V power supply (-)
 
 ### Reed Switch Multiplexer Wiring
 
-Each chess square has a reed switch underneath that closes when a magnetic chess piece is placed on top.
+Each square (including capture areas) has a reed switch underneath that closes when a magnetic chess piece is placed on top.
 
 **CD74HC4067 Multiplexer Connections**:
 ```
 CD74HC4067 → Raspberry Pi / Reed Switches
   VCC  → 3.3V (logic power from Pi - MUST be 3.3V, NOT 5V!)
   GND  → GND
-  SIG  → GPIO (13, 19, 26, or 4 depending on multiplexer)
-  S0   → GPIO 12 (shared across all 4 multiplexers)
-  S1   → GPIO 16 (shared across all 4 multiplexers)
-  S2   → GPIO 20 (shared across all 4 multiplexers)
-  S3   → GPIO 21 (shared across all 4 multiplexers)
+  SIG  → GPIO (13, 19, 26, 4, 14, or 11 depending on multiplexer)
+  S0   → GPIO 12 (shared across all 6 multiplexers)
+  S1   → GPIO 16 (shared across all 6 multiplexers)
+  S2   → GPIO 20 (shared across all 6 multiplexers)
+  S3   → GPIO 21 (shared across all 6 multiplexers)
   EN   → GND (always enabled)
   C0-C15 → Reed switches (one side to channel, other side to 3.3V)
 ```
@@ -219,23 +224,25 @@ Note: External resistors not required - Pi has internal pull-downs enabled in so
 - **Mux 2 (GPIO 19)**: Squares a3-h3 (channels 0-7), a4-h4 (channels 8-15)
 - **Mux 3 (GPIO 26)**: Squares a5-h5 (channels 0-7), a6-h6 (channels 8-15)
 - **Mux 4 (GPIO 4)**: Squares a7-h7 (channels 0-7), a8-h8 (channels 8-15)
+- **Mux 5 (GPIO 14)**: Left capture area L1-L16 (2 columns × 8 rows)
+- **Mux 6 (GPIO 11)**: Right capture area R1-R16 (2 columns × 8 rows)
 
 **How it works**:
 1. The 4 address pins (S0-S3) select which of the 16 channels to read (shared across all muxes)
 2. Each multiplexer's SIG pin is read individually to get that square's state
-3. System scans all 64 squares sequentially by iterating through 0-15 on address pins
+3. System scans all 96 squares sequentially by iterating through 0-15 on address pins
 4. When a magnetic piece is on a square, the reed switch closes, pulling the channel HIGH
-5. Can detect piece placement, removal, and track all moves made by human players
+5. Can detect piece placement, removal, and track all moves (including captures)
 
 ### WS2812B LED Strip Wiring
 
-Each chess square has one WS2812B RGB LED (5050 SMD) for visual feedback.
+Each square (main board + capture areas) has one WS2812B RGB LED (5050 SMD) for visual feedback.
 
 **WS2812B Specifications**:
 - Voltage: 5V DC
 - Power: 0.24W per LED (60mA max at full white)
-- Total: 64 LEDs × 0.24W = **15.36W max** (3A @ 5V at full brightness)
-- Typical usage: 3-5W (lower brightness, not all white)
+- Total: 96 LEDs × 0.24W = **23.04W max** (4.6A @ 5V at full brightness)
+- Typical usage: 5-8W (lower brightness, not all white)
 - Protocol: Single-wire data (800kHz timing, requires hardware PWM)
 
 **Wiring Topology: Single Daisy Chain**
@@ -244,36 +251,36 @@ Pi GPIO 18 (PWM0) → LED 1 Data In
 LED 1 Data Out → LED 2 Data In
 LED 2 Data Out → LED 3 Data In
 ...
-LED 64 Data Out → (end of chain)
+LED 96 Data Out → (end of chain)
 
 All LEDs:
-  5V → External 5V supply (buck converter, 5A rated)
+  5V → External 5V supply (buck converter, 5A+ rated)
   GND → Common ground with Pi
 ```
 
-**LED Index Mapping** (a1 = 0, h8 = 63):
+**LED Index Mapping** (96 total LEDs):
 ```
-Row 8:  56  57  58  59  60  61  62  63  (a8-h8)
-Row 7:  48  49  50  51  52  53  54  55  (a7-h7)
-Row 6:  40  41  42  43  44  45  46  47  (a6-h6)
-Row 5:  32  33  34  35  36  37  38  39  (a5-h5)
-Row 4:  24  25  26  27  28  29  30  31  (a4-h4)
-Row 3:  16  17  18  19  20  21  22  23  (a3-h3)
-Row 2:   8   9  10  11  12  13  14  15  (a2-h2)
-Row 1:   0   1   2   3   4   5   6   7  (a1-h1)
-        a   b   c   d   e   f   g   h
+Left Capture (LEDs 0-15):     Main Board (LEDs 16-79):        Right Capture (LEDs 80-95):
+ 0   1  (row 8, cols -2,-1)   Row 8:  16 17 ... 23  (a8-h8)    80 81  (row 8, cols 8,9)
+ 2   3  (row 7, cols -2,-1)   Row 7:  24 25 ... 31  (a7-h7)    82 83  (row 7, cols 8,9)
+ 4   5  (row 6)               Row 6:  32 33 ... 39  (a6-h6)    84 85  (row 6)
+ 6   7  (row 5)               Row 5:  40 41 ... 47  (a5-h5)    86 87  (row 5)
+ 8   9  (row 4)               Row 4:  48 49 ... 55  (a4-h4)    88 89  (row 4)
+10  11  (row 3)               Row 3:  56 57 ... 63  (a3-h3)    90 91  (row 3)
+12  13  (row 2)               Row 2:  64 65 ... 71  (a2-h2)    92 93  (row 2)
+14  15  (row 1, cols -2,-1)   Row 1:  72 73 ... 79  (a1-h1)    94 95  (row 1, cols 8,9)
 ```
 
 **Physical Installation**:
-1. Mount one WS2812B LED in the top-right corner of each square
-2. Wire in a continuous snake pattern or row-by-row
+1. Mount one WS2812B LED in the top-right corner of each square (including capture areas)
+2. Wire in a continuous chain: left capture → main board → right capture
 3. Use **470Ω resistor** on data line (between Pi and first LED) to reduce ringing
 4. Add **1000µF capacitor** across 5V and GND near LED strip for power stability
 5. Keep data wire short (<1m) or use level shifter for longer runs
 
 **Power Injection**:
-- For 64 LEDs, inject power at **both ends** of the strip to prevent voltage drop
-- Or inject every 32 LEDs (middle + ends)
+- For 96 LEDs, inject power at **multiple points** to prevent voltage drop
+- Inject at start, middle (after ~48 LEDs), and end
 - Use 18-20 AWG wire for power distribution
 
 **Critical Timing**:
@@ -591,8 +598,8 @@ from reed_switch_controller import ReedSwitchController
 # Create controller
 reed = ReedSwitchController()
 
-# Scan all 64 squares
-board_state = reed.scan_with_debounce()  # Returns list of 64 booleans
+# Scan all 96 squares (64 main board + 32 capture areas)
+board_state = reed.scan_with_debounce()  # Returns list of 96 booleans
 
 # Get list of occupied squares
 occupied = reed.get_occupied_squares()  # Returns [(row, col), ...]
@@ -621,7 +628,7 @@ reed.close()
 **Reed Switch Features**:
 - **Automatic debouncing** to filter electrical noise
 - **Real-time move detection** for human players
-- **64-square coverage** using 4 multiplexers
+- **96-square coverage** using 6 multiplexers (main board + capture areas)
 - **Fast scanning** up to 50 Hz
 - **Visual board display** showing occupied squares
 

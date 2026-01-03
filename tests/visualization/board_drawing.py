@@ -3,11 +3,14 @@
 from typing import TYPE_CHECKING
 
 import matplotlib.patches as mpatches
+import matplotlib.patheffects as path_effects
 
 import config
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
+
+    from chess_game import ChessGame
 
 
 def draw_chess_board_grid(
@@ -46,9 +49,10 @@ def draw_chess_board_grid(
             left_capture_start = config.LEFT_CAPTURE_START_MM + offset
             right_capture_start = config.RIGHT_CAPTURE_START_MM + offset
         else:
-            # In board coordinate space, place captures adjacent (no gap)
-            left_capture_start = -config.CAPTURE_COLS * sq_size
-            right_capture_start = config.BOARD_COLS * sq_size
+            # In board coordinate space, add gap proportional to capture offset
+            gap_in_squares = config.CAPTURE_OFFSET_MM / config.SQUARE_SIZE_MM
+            left_capture_start = -(config.CAPTURE_COLS + gap_in_squares) * sq_size
+            right_capture_start = (config.BOARD_COLS + gap_in_squares) * sq_size
 
         # Draw left capture area (2x8 squares) - Black's captured pieces
         for row in range(config.CAPTURE_ROWS + 1):
@@ -194,3 +198,61 @@ def setup_board_axes(ax: "Axes", title: str) -> float:
     ax.set_ylim(-margin, board_height_mm + margin)
 
     return float(margin)
+
+
+def draw_chess_pieces(ax: "Axes", game: "ChessGame") -> None:
+    """
+    Draw chess pieces on the board using Unicode symbols.
+
+    This function can be reused across different tests to visualize game states.
+    White pieces are drawn with black outline for visibility.
+
+    Args:
+        ax: Matplotlib axes to draw on (should be in board coordinate space)
+        game: Chess game instance containing the board state
+    """
+    from chess_game import PieceType, Player
+
+    piece_symbols = {
+        PieceType.PAWN: "♟",
+        PieceType.KNIGHT: "♞",
+        PieceType.BISHOP: "♝",
+        PieceType.ROOK: "♜",
+        PieceType.QUEEN: "♛",
+        PieceType.KING: "♚",
+    }
+
+    for square, piece in game.board.items():
+        symbol = piece_symbols[piece.piece_type]
+        # White pieces with black outline, black pieces solid
+        if piece.player == Player.WHITE:
+            text = ax.text(
+                square.col + 0.5,
+                square.row + 0.5,
+                symbol,
+                fontsize=36,
+                ha="center",
+                va="center",
+                color="white",
+                weight="bold",
+                zorder=10,
+            )
+            # Add black outline to white pieces for visibility
+            text.set_path_effects(
+                [
+                    path_effects.Stroke(linewidth=3, foreground="black"),
+                    path_effects.Normal(),
+                ]
+            )
+        else:
+            ax.text(
+                square.col + 0.5,
+                square.row + 0.5,
+                symbol,
+                fontsize=36,
+                ha="center",
+                va="center",
+                color="black",
+                weight="bold",
+                zorder=10,
+            )

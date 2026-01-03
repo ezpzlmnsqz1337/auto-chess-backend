@@ -55,6 +55,49 @@ def plot_path_with_gradient(
         ax.plot(sample_x, sample_y, "o", color="cyan", markersize=2, alpha=0.6, zorder=3)
 
 
+def plot_path_with_magnet_state(
+    ax: "Axes",
+    x_mm: list[float],
+    y_mm: list[float],
+    magnet_states: list[bool],
+) -> None:
+    """
+    Plot a path colored by magnet state (red = on, green = off).
+
+    Args:
+        ax: Matplotlib axes to plot on
+        x_mm: X coordinates in millimeters
+        y_mm: Y coordinates in millimeters
+        magnet_states: Boolean list indicating if magnet was on at each point
+    """
+    if len(x_mm) < 2:
+        return
+
+    # Create segments for line collection
+    points = np.array([x_mm, y_mm]).T.reshape(-1, 1, 2)
+    segments = np.concatenate([points[:-1], points[1:]], axis=1)
+
+    # Create colors based on magnet state (use state at start of each segment)
+    colors = []
+    for i in range(len(segments)):
+        if magnet_states[i]:  # Magnet on
+            colors.append((1.0, 0.0, 0.0, 0.8))  # Red with alpha
+        else:  # Magnet off
+            colors.append((0.0, 0.8, 0.0, 0.8))  # Green with alpha
+
+    # Create and add LineCollection
+    lc = LineCollection(segments, colors=colors, linewidth=2.5, zorder=2)  # type: ignore[arg-type]
+    ax.add_collection(lc)
+
+    # Add legend entries (create dummy lines for legend)
+    from matplotlib.lines import Line2D
+    legend_elements = [
+        Line2D([0], [0], color='red', lw=2.5, label='Magnet ON'),
+        Line2D([0], [0], color='green', lw=2.5, label='Magnet OFF')
+    ]
+    ax.legend(handles=legend_elements, loc='upper right', fontsize=8)
+
+
 def add_start_end_markers(
     ax: "Axes", x_mm: list[float], y_mm: list[float], end_offset: int = 1
 ) -> None:

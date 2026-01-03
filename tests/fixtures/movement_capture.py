@@ -11,7 +11,7 @@ def capture_movement_path(
     target_positions: list[tuple[int, int]],
     sample_rate: int = 10,
     skip_first_move: bool = False,
-) -> tuple[list[tuple[int, int]], list[float], list[float]]:
+) -> tuple[list[tuple[int, int]], list[float], list[float], list[bool]]:
     """
     Capture the actual path the motors take through all target positions.
 
@@ -25,14 +25,16 @@ def capture_movement_path(
         skip_first_move: If True, don't record velocities for the first move (positioning)
 
     Returns:
-        Tuple of (positions, timestamps, velocities) where:
+        Tuple of (positions, timestamps, velocities, magnet_states) where:
         - positions: List of all (x, y) positions visited
         - timestamps: Simulated time in seconds for each position
         - velocities: Velocity in mm/s at each captured point
+        - magnet_states: List of boolean indicating if magnet was on at each point
     """
     path = [controller.get_position()]
     timestamps = [0.0]
     velocities = [0.0]
+    magnet_states = [controller.electromagnet.is_on if controller.electromagnet else False]
     step_counter = [0]
     simulated_time = [0.0]  # Track simulated time based on step delays
     last_pos = path[0]
@@ -48,6 +50,7 @@ def capture_movement_path(
         nonlocal last_pos, last_time
         pos = controller.get_position()
         path.append(pos)
+        magnet_states.append(controller.electromagnet.is_on if controller.electromagnet else False)
         t = simulated_time[0]
         timestamps.append(t)
         # Calculate velocity from actual distance traveled / time elapsed
@@ -102,6 +105,7 @@ def capture_movement_path(
                     path.clear()
                     timestamps.clear()
                     velocities.clear()
+                    magnet_states.clear()
                     # Reset simulated time to start fresh for the actual move
                     simulated_time[0] = 0.0
                     # Reset tracking for next move
@@ -109,6 +113,7 @@ def capture_movement_path(
                     path.append(pos)
                     timestamps.append(0.0)
                     velocities.append(0.0)
+                    magnet_states.append(controller.electromagnet.is_on if controller.electromagnet else False)
                     last_pos = pos
                     last_time = 0.0
                     # Reset last_sampled_step to avoid skipping first sample of next move
@@ -120,6 +125,7 @@ def capture_movement_path(
                 path.append(pos)
                 t = simulated_time[0]
                 timestamps.append(t)
+                magnet_states.append(controller.electromagnet.is_on if controller.electromagnet else False)
                 # Set velocity to 0 at waypoints since we're at rest
                 # (avoid artifacts from long intervals between last sample and waypoint)
                 velocities.append(0.0)
@@ -130,4 +136,4 @@ def capture_movement_path(
             controller.motor_x._pulse_step = original_pulse_x  # type: ignore[method-assign]
             controller.motor_y._pulse_step = original_pulse_y  # type: ignore[method-assign]
 
-    return path, timestamps, velocities
+    return path, timestamps, velocities, magnet_states
