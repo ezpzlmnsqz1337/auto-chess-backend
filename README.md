@@ -245,17 +245,27 @@ Each square (main board + capture areas) has one WS2812B RGB LED (5050 SMD) for 
 - Typical usage: 5-8W (lower brightness, not all white)
 - Protocol: Single-wire data (800kHz timing, requires hardware PWM)
 
-**Wiring Topology: Single Daisy Chain**
-```
-Pi GPIO 18 (PWM0) → LED 1 Data In
-LED 1 Data Out → LED 2 Data In
-LED 2 Data Out → LED 3 Data In
-...
-LED 96 Data Out → (end of chain)
+**Wiring Topology: Three-Section Architecture**
 
-All LEDs:
-  5V → External 5V supply (buck converter, 5A+ rated)
-  GND → Common ground with Pi
+The 96 LEDs are organized in three independent physical sections with a single continuous data chain:
+
+```
+Buck Converter (5V)
+  ├─→ 22AWG power wire → Black Captures section (LEDs 0-15)
+  ├─→ 22AWG power wire → Main Board section (LEDs 16-79)
+  └─→ 22AWG power wire → White Captures section (LEDs 80-95)
+
+Data Chain (single GPIO 18, thin 30AWG wire between sections):
+Pi GPIO 18 (PWM0) → 470Ω resistor → Black Captures LED 0 Din
+Black Captures LED 15 Dout → 30AWG → Main Board LED 16 Din
+Main Board LED 79 Dout → 30AWG → White Captures LED 80 Din
+White Captures LED 95 Dout → (end of chain)
+
+Each Section Internally (30AWG inter-LED segments):
+  LED N Dout → LED N+1 Din (3cm maximum)
+
+Ground (common):
+  All sections → Pi GND (common ground rail)
 ```
 
 **LED Index Mapping** (96 total LEDs):
@@ -273,15 +283,29 @@ Left Capture (LEDs 0-15):     Main Board (LEDs 16-79):        Right Capture (LED
 
 **Physical Installation**:
 1. Mount one WS2812B LED in the top-right corner of each square (including capture areas)
-2. Wire in a continuous chain: left capture → main board → right capture
-3. Use **470Ω resistor** on data line (between Pi and first LED) to reduce ringing
-4. Add **1000µF capacitor** across 5V and GND near LED strip for power stability
-5. Keep data wire short (<1m) or use level shifter for longer runs
+2. Organize LEDs into three physical sections:
+   - **Section 1**: Black captures (LEDs 0-15, 16 total)
+   - **Section 2**: Main board (LEDs 16-79, 64 total)
+   - **Section 3**: White captures (LEDs 80-95, 16 total)
+3. Wire data connections:
+   - Use **470Ω resistor** on data line (between Pi GPIO 18 and first LED) to reduce ringing
+   - Use **30AWG thin wire** for:
+     * Inter-LED connections within each section (3cm max per segment)
+     * Section-to-section data connections (between Dout and Din)
+4. Wire power connections:
+   - Use **22AWG thick wire** from buck converter to each section:
+     * One 22AWG wire → Black Captures section LED 0 (5V/GND)
+     * One 22AWG wire → Main Board section LED 16 (5V/GND)
+     * One 22AWG wire → White Captures section LED 80 (5V/GND)
+   - Use **30AWG thin wire** for inter-LED power within each section
+5. Add **1000µF capacitor** across 5V and GND near buck converter output for power stability
+6. Ensure common ground: All sections share Pi GND rail
 
-**Power Injection**:
-- For 96 LEDs, inject power at **multiple points** to prevent voltage drop
-- Inject at start, middle (after ~48 LEDs), and end
-- Use 18-20 AWG wire for power distribution
+**Advantages of Three-Section Topology**:
+- **Prevents voltage drop accumulation**: Each section independently powered from buck converter
+- **Tight space friendly**: Thin 30AWG wires for inter-LED segments (only 0.02V drop per 3cm)
+- **Single GPIO control**: One data line controls all 96 LEDs via daisy-chain
+- **Scalable power**: Easy to add additional thick-wire injections if needed for future expansion
 
 **Critical Timing**:
 - WS2812B requires precise 800kHz timing (1.25µs periods)
