@@ -22,9 +22,7 @@ rsync -avz --delete \
   --exclude 'tests/' \
   --exclude 'analysis/' \
   --exclude 'docs/' \
-  --exclude 'uv.lock' \
   --exclude 'AGENTS.md' \
-  --exclude 'README.md' \
   "$LOCAL_DIR/" "$REMOTE_HOST:$REMOTE_DIR/"
 
 echo -e "${GREEN}✅ Files synced successfully!${NC}"
