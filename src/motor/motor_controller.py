@@ -3,6 +3,7 @@
 import os
 
 from .electromagnet import Electromagnet
+from .pigpio_wave import PigpioWaveGenerator, create_wave_generator
 from .stepper_motor import StepperMotor
 
 # Disable debug prints during testing
@@ -21,6 +22,7 @@ class MotorController:
         min_step_delay: float = 0.0008,
         max_step_delay: float = 0.004,
         accel_steps: int = 50,
+        use_pigpio: bool = True,
     ):
         """
         Initialize the dual-axis motor controller.
@@ -33,6 +35,7 @@ class MotorController:
             min_step_delay: Minimum delay between steps (max speed)
             max_step_delay: Maximum delay between steps (start/end speed)
             accel_steps: Number of steps for acceleration/deceleration ramps
+            use_pigpio: Try to use pigpio for hardware-timed waves (faster, more precise)
         """
         self.motor_x = motor_x
         self.motor_y = motor_y
@@ -41,6 +44,16 @@ class MotorController:
         self.min_step_delay = min_step_delay
         self.max_step_delay = max_step_delay
         self.accel_steps = accel_steps
+
+        # Try to initialize pigpio for hardware-timed step generation
+        self.wave_generator: PigpioWaveGenerator | None = None
+        if use_pigpio:
+            self.wave_generator = create_wave_generator()
+            if self.wave_generator:
+                print("✅ Using pigpio for hardware-timed step generation")
+            else:
+                print("⚠️  Falling back to software timing (time.sleep)")
+
 
     def home_all(
         self,
@@ -99,6 +112,9 @@ class MotorController:
         This ensures diagonal movements follow a straight line. Each motor
         uses its own acceleration profile based on its individual step count.
 
+        If pigpio is available, uses hardware-timed waves for precise timing.
+        Otherwise falls back to software timing with time.sleep().
+
         Args:
             dx: Steps to move on X axis (signed)
             dy: Steps to move on Y axis (signed)
@@ -118,23 +134,11 @@ class MotorController:
         # Validate and prepare for movement
         target_x, target_y = self._prepare_coordinated_move(dx, dy, x_dir, y_dir)
 
-        # Save original step delays
-        original_x_delay = self.motor_x.step_delay
-        original_y_delay = self.motor_y.step_delay
-
-        # Diagonal speed optimization
-        is_diagonal = abs_dx > 0 and abs_dy > 0
-        diagonal_speed_boost = 0.7 if is_diagonal else 1.0  # 30% faster on diagonals
-
-        # Execute Bresenham algorithm
-        if abs_dx > abs_dy:
-            self._execute_x_dominant_move(abs_dx, abs_dy, x_dir, y_dir, diagonal_speed_boost)
+        # Use pigpio hardware timing if available
+        if self.wave_generator:
+            self._move_coordinated_with_pigpio(abs_dx, abs_dy, x_dir, y_dir)
         else:
-            self._execute_y_dominant_move(abs_dx, abs_dy, x_dir, y_dir, diagonal_speed_boost)
-
-        # Restore original step delays
-        self.motor_x.step_delay = original_x_delay
-        self.motor_y.step_delay = original_y_delay
+            self._move_coordinated_with_sleep(abs_dx, abs_dy, x_dir, y_dir)
 
         # Ensure positions are correct
         self.motor_x.current_position = target_x
@@ -171,6 +175,114 @@ class MotorController:
         self.motor_y._set_direction(y_dir)
 
         return target_x, target_y
+
+    def _move_coordinated_with_pigpio(
+        self, abs_dx: int, abs_dy: int, x_dir: int, y_dir: int
+    ) -> None:
+        """
+        Execute coordinated move using pigpio hardware-timed waves.
+
+        Args:
+            abs_dx: Absolute X steps
+            abs_dy: Absolute Y steps
+            x_dir: X direction (0 or 1)
+            y_dir: Y direction (0 or 1)
+        """
+        if not self.wave_generator:
+            raise RuntimeError("Pigpio wave generator not available")
+
+        # Build step timelines with acceleration for both motors
+        x_steps = self._build_step_timeline(abs_dx)
+        y_steps = self._build_step_timeline(abs_dy)
+
+        # Apply diagonal speed boost if both axes moving
+        is_diagonal = abs_dx > 0 and abs_dy > 0
+        diagonal_boost = 0.7 if is_diagonal else 1.0
+
+        # Apply boost to delays
+        x_steps = [(step_num, delay * diagonal_boost) for step_num, delay in x_steps]
+        y_steps = [(step_num, delay * diagonal_boost) for step_num, delay in y_steps]
+
+        # Apply direction inversion from motor config
+        final_x_dir = x_dir
+        final_y_dir = y_dir
+        if self.motor_x.invert_direction:
+            final_x_dir = 1 - final_x_dir
+        if self.motor_y.invert_direction:
+            final_y_dir = 1 - final_y_dir
+
+        # Generate and execute wave
+        self.wave_generator.generate_coordinated_wave(
+            x_steps=x_steps,
+            y_steps=y_steps,
+            x_step_pin=self.motor_x.step_pin,
+            y_step_pin=self.motor_y.step_pin,
+            x_dir_pin=self.motor_x.dir_pin,
+            y_dir_pin=self.motor_y.dir_pin,
+            x_dir=final_x_dir,
+            y_dir=final_y_dir,
+            pulse_width_us=int(self.motor_x.step_pulse_duration * 1_000_000),
+        )
+
+    def _build_step_timeline(self, total_steps: int) -> list[tuple[int, float]]:
+        """
+        Build a timeline of step delays with acceleration profile.
+
+        Args:
+            total_steps: Total number of steps to execute
+
+        Returns:
+            List of (step_number, delay_seconds) tuples
+        """
+        timeline: list[tuple[int, float]] = []
+
+        for step_num in range(total_steps):
+            if self.enable_acceleration:
+                delay = StepperMotor.calculate_step_delay(
+                    step_num,
+                    total_steps,
+                    self.min_step_delay,
+                    self.max_step_delay,
+                    self.accel_steps,
+                )
+            else:
+                delay = self.min_step_delay
+
+            # Add pulse duration to delay
+            total_delay = delay + self.motor_x.step_pulse_duration
+            timeline.append((step_num, total_delay))
+
+        return timeline
+
+    def _move_coordinated_with_sleep(
+        self, abs_dx: int, abs_dy: int, x_dir: int, y_dir: int
+    ) -> None:
+        """
+        Execute coordinated move using software timing (time.sleep fallback).
+
+        Args:
+            abs_dx: Absolute X steps
+            abs_dy: Absolute Y steps
+            x_dir: X direction (0 or 1)
+            y_dir: Y direction (0 or 1)
+        """
+        # Save original step delays
+        original_x_delay = self.motor_x.step_delay
+        original_y_delay = self.motor_y.step_delay
+
+        # Diagonal speed optimization
+        is_diagonal = abs_dx > 0 and abs_dy > 0
+        diagonal_speed_boost = 0.7 if is_diagonal else 1.0  # 30% faster on diagonals
+
+        # Execute Bresenham algorithm
+        if abs_dx > abs_dy:
+            self._execute_x_dominant_move(abs_dx, abs_dy, x_dir, y_dir, diagonal_speed_boost)
+        else:
+            self._execute_y_dominant_move(abs_dx, abs_dy, x_dir, y_dir, diagonal_speed_boost)
+
+        # Restore original step delays
+        self.motor_x.step_delay = original_x_delay
+        self.motor_y.step_delay = original_y_delay
 
     def _execute_x_dominant_move(
         self,

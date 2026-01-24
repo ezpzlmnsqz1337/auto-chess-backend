@@ -7,6 +7,8 @@ It handles:
 - Coordinated motor movements
 """
 
+from collections import deque
+
 import config
 from chess_game import ChessGame, Square
 from motor import MotorController
@@ -24,11 +26,8 @@ def _plan_capture_area_path(
     """
     Plan a path to move a piece from the board to the capture area, avoiding obstacles.
 
-    Uses greedy local pathfinding:
-    1. Try to move horizontally toward target
-    2. If blocked, try diagonal moves
-    3. If still blocked, move vertically
-    4. As last resort, use edge routing
+    Uses edge-based pathfinding with clearance margins (similar to knight movement),
+    ensuring pieces navigate around obstacles without passing through them.
 
     Args:
         from_square: Source square on the main board
@@ -49,138 +48,229 @@ def _plan_capture_area_path(
 
     # Determine which side we're going to
     is_left_capture = capture_col < 0
-
-    waypoints: list[tuple[int, int]] = []
-
-    # Start from current position
-    current_row = from_square.row
-    current_col = from_square.col
-
-    # Target edge column (0 for left capture, 7 for right capture)
     target_edge_col = 0 if is_left_capture else 7
 
-    # Helper function to check if a square is occupied (excluding the starting square)
+    # Helper: Check if a main board square is occupied (excluding starting square)
     def is_occupied(row: int, col: int) -> bool:
         """Check if a square is occupied, excluding the piece being moved."""
+        if not (0 <= row < config.BOARD_ROWS and 0 <= col < config.BOARD_COLS):
+            return True  # Out of bounds is blocked
         test_square = Square(row, col)
-        # The starting square is not an obstacle since we're moving the piece from there
         if test_square == from_square:
             return False
         return test_square in game.board
 
-    # Keep moving until we reach the target edge column
-    # BUT if we're on an edge row (0 or 7) and completely blocked, we can enter the capture area
-    # directly from wherever we are on that row
-    max_iterations = 100  # Safety limit to prevent infinite loops
-    iteration = 0
-    last_position = (current_row, current_col)
+    # BFS to find unobstructed path to board edge
+    def find_path_to_edge(start_row: int, start_col: int) -> list[tuple[int, int]] | None:
+        """Find path from (start_row, start_col) to target edge column."""
+        queue_data: deque[tuple[int, int, list[tuple[int, int]]]] = deque([
+            (start_row, start_col, [(start_row, start_col)])
+        ])
+        visited: set[tuple[int, int]] = {(start_row, start_col)}
 
-    while current_col != target_edge_col and iteration < max_iterations:
-        iteration += 1
+        while queue_data:
+            row, col, path = queue_data.popleft()
 
-        # Check if we're stuck (position hasn't changed for multiple iterations)
-        if (
-            iteration > 1
-            and (current_row, current_col) == last_position
-            and (current_row == 0 or current_row == 7)
-        ):
-            # We're stuck on an edge row - just enter the capture area from here
-            break  # Exit loop and proceed directly to capture area
-        last_position = (current_row, current_col)
-        iteration += 1
+            # Check if we reached the target edge
+            if col == target_edge_col:
+                return path
 
-        # Determine horizontal direction (-1 for left, +1 for right)
-        col_direction = -1 if is_left_capture else 1
-        next_col = current_col + col_direction
+            # Try all directions (cardinal + diagonal)
+            for dr, dc in [(0, 1), (0, -1), (1, 0), (-1, 0), (1, 1), (1, -1), (-1, 1), (-1, -1)]:
+                next_row, next_col = row + dr, col + dc
 
-        # Try to move horizontally toward target
-        if 0 <= next_col < config.BOARD_COLS and not is_occupied(current_row, next_col):
-            # Move horizontally
-            current_col = next_col
-            waypoints.append(square_to_steps(current_row, current_col))
-            continue
+                if (next_row, next_col) not in visited and not is_occupied(next_row, next_col):
+                    visited.add((next_row, next_col))
+                    queue_data.append((next_row, next_col, path + [(next_row, next_col)]))
 
-        # Horizontal move blocked, try diagonal moves (up and down)
-        moved = False
-        for row_direction in [1, -1]:  # Try both up and down
-            next_row = current_row + row_direction
-            if (
-                0 <= next_row < config.BOARD_ROWS
-                and 0 <= next_col < config.BOARD_COLS
-                and not is_occupied(next_row, next_col)
-            ):
-                # Move diagonally
-                current_row = next_row
-                current_col = next_col
-                waypoints.append(square_to_steps(current_row, current_col))
-                moved = True
-                break
+        return None
 
-        if moved:
-            continue
+    # If completely boxed in on all adjacent squares, force fallback straight-line edge walk
+    directions = [(0, 1), (0, -1), (1, 0), (-1, 0), (1, 1), (1, -1), (-1, 1), (-1, -1)]
+    all_neighbors_blocked = all(
+        is_occupied(from_square.row + dr, from_square.col + dc) for dr, dc in directions
+    )
 
-        # Diagonal moves blocked, try moving vertically
-        # Choose direction based on target capture row
-        if current_row < capture_row:
-            vertical_direction = 1  # Move up
-        elif current_row > capture_row:
-            vertical_direction = -1  # Move down
-        else:
-            # Same row as target, try moving away from crowded area
-            vertical_direction = 1 if current_row < 4 else -1
+    # Find path to board edge unless we're boxed in
+    path_to_edge = None if all_neighbors_blocked else find_path_to_edge(from_square.row, from_square.col)
 
-        next_row = current_row + vertical_direction
-        if 0 <= next_row < config.BOARD_ROWS and not is_occupied(next_row, current_col):
-            # Move vertically
-            current_row = next_row
-            waypoints.append(square_to_steps(current_row, current_col))
-            continue
+    # If path uses vertical/diagonal moves toward a side capture, force edge-walk instead
+    force_edge_walk = False
+    if path_to_edge:
+        for (r1, c1), (r2, c2) in zip(path_to_edge, path_to_edge[1:]):
+            dr, dc = r2 - r1, c2 - c1
+            if capture_col >= 8:
+                # For right capture, require purely horizontal toward increasing col
+                if dr != 0 or dc <= 0:
+                    force_edge_walk = True
+                    break
+            elif capture_col < 0:
+                # For left capture, purely horizontal toward decreasing col
+                if dr != 0 or dc >= 0:
+                    force_edge_walk = True
+                    break
+    if force_edge_walk:
+        path_to_edge = None
 
-        # Last resort: edge routing - try to reach an edge row
-        for edge_row in [7, 0]:  # Try top then bottom edge
-            # Check if we can reach this edge row vertically
-            can_reach = True
-            start = min(current_row, edge_row)
-            end = max(current_row, edge_row)
-            for r in range(start, end + 1):
-                if r == current_row:
+    # Convert board path to motor steps using edge-based navigation
+    # This ensures we move along edges between squares with clearance, not through centers
+    waypoints: list[tuple[int, int]] = []
+    edge_row = from_square.row
+    fallback_edge_walk = False
+
+    if path_to_edge is None:
+        # BFS failed - piece is surrounded. Try escape routes by finding clear vertical paths
+        # Strategy: try moving to different rows, then move to edge column from there
+
+        escape_found = False
+        best_escape_path: list[tuple[int, int]] | None = None
+
+        # Try escaping upward or downward
+        for escape_col in range(8):
+            # Try moving vertically to find a clear row
+            for escape_row in [0, 7, 2, 5, 3, 4, 1, 6]:  # Prioritize extreme rows
+                # Check if there's a clear vertical path to escape_row at escape_col
+                path_is_clear = True
+                direction = 1 if escape_row > from_square.row else -1
+                current_row = from_square.row
+
+                while current_row != escape_row:
+                    current_row += direction
+                    if is_occupied(current_row, escape_col):
+                        path_is_clear = False
+                        break
+
+                if not path_is_clear:
                     continue
-                if is_occupied(r, current_col):
-                    can_reach = False
+
+                # Now try to reach target edge column from this escape position
+                escape_path = find_path_to_edge(escape_row, escape_col)
+                if escape_path is not None:
+                    best_escape_path = [
+                        (from_square.row, from_square.col)
+                    ]
+                    # Add path from current to escape position
+                    direction = 1 if escape_row > from_square.row else -1
+                    for r in range(from_square.row + direction, escape_row + direction, direction):
+                        best_escape_path.append((r, escape_col))
+                    # Add escape path to edge
+                    best_escape_path.extend(escape_path[1:])
+                    escape_found = True
                     break
 
-            if can_reach:
-                # Move to edge row
-                current_row = edge_row
-                waypoints.append(square_to_steps(current_row, current_col))
+            if escape_found:
                 break
 
-    # Now at the target edge column (0 or 7), move into the capture area
-    # Use the inner capture column (-1 for left, 8 for right) as the default corridor
-    if current_row != capture_row:
-        # Inner capture column (less likely to be filled)
+        if escape_found and best_escape_path is not None:
+            path_to_edge = best_escape_path
+        else:
+            # Still no path (or boxed in) - final fallback:
+            # Move to square corner facing capture side, then slide along that square edge
+            # to the board boundary in the capture direction, then resume capture-area nav.
+            square_size_steps = int(config.SQUARE_SIZE_MM * config.STEPS_PER_MM)
+            half_square_steps = square_size_steps // 2
+
+            center_x, center_y = square_to_steps(from_square.row, from_square.col)
+            corner_x = center_x - half_square_steps if is_left_capture else center_x + half_square_steps
+            # Use top edge toward capture side (horizontal traverse)
+            corner_y = center_y + half_square_steps
+
+            # Board boundary at capture side (use outer edge of the edge column)
+            if is_left_capture:
+                boundary_x_mm = target_edge_col * config.SQUARE_SIZE_MM + config.MOTOR_X_OFFSET_MM
+            else:
+                boundary_x_mm = (target_edge_col + 1) * config.SQUARE_SIZE_MM + config.MOTOR_X_OFFSET_MM
+            boundary_x = int(boundary_x_mm * config.STEPS_PER_MM)
+
+            waypoints.append((corner_x, corner_y))
+            waypoints.append((boundary_x, corner_y))
+
+            edge_row = from_square.row
+            fallback_edge_walk = True
+
+    if not fallback_edge_walk and path_to_edge is not None and len(path_to_edge) > 1:
+        # Use BFS path but navigate using edge-based approach
+        # Move along edges between squares with clearance to avoid pieces
+
+        square_size_steps = int(config.SQUARE_SIZE_MM * config.STEPS_PER_MM)
+        clearance_steps = int(1.0 * config.STEPS_PER_MM)  # 1mm clearance from edge
+
+        # Start from current position
+        current_x, current_y = square_to_steps(from_square.row, from_square.col)
+        current_row, current_col = from_square.row, from_square.col
+
+        # Process each step in the BFS path
+        for target_row, target_col in path_to_edge[1:]:  # Skip starting position
+            # Calculate movement direction
+            delta_row = target_row - current_row
+            delta_col = target_col - current_col
+
+            # Get center positions for current and target
+            next_x, next_y = square_to_steps(target_row, target_col)
+
+            # Calculate edge point between squares with clearance
+            # This is similar to knight pathfinding - we move along the edge
+            edge_x = (current_x + next_x) // 2
+            edge_y = (current_y + next_y) // 2
+
+            # Apply clearance offset based on direction
+            if delta_col != 0 and delta_row != 0:
+                # Diagonal movement - apply clearance to both axes
+                # Clearance pulls away from potential obstacles
+                moving_right = delta_col > 0
+                moving_up = delta_row > 0
+
+                edge_x += (square_size_steps - clearance_steps) if moving_right else clearance_steps
+                edge_y += (square_size_steps - clearance_steps) if moving_up else clearance_steps
+            elif delta_col != 0:
+                # Horizontal movement - apply clearance perpendicular to direction
+                moving_right = delta_col > 0
+                edge_x += (square_size_steps - clearance_steps) if moving_right else clearance_steps
+            elif delta_row != 0:
+                # Vertical movement - apply clearance perpendicular to direction
+                moving_up = delta_row > 0
+                edge_y += (square_size_steps - clearance_steps) if moving_up else clearance_steps
+
+            # Add edge waypoint if different from last
+            if not waypoints or (edge_x, edge_y) != waypoints[-1]:
+                waypoints.append((edge_x, edge_y))
+
+            # Add destination square center
+            waypoints.append((next_x, next_y))
+
+            current_row = target_row
+            current_col = target_col
+            current_x = next_x
+            current_y = next_y
+
+        edge_row = path_to_edge[-1][0]
+    # else: fallback_edge_walk keeps edge_row at starting row
+
+    # Now navigate in capture area from board edge
+    if edge_row != capture_row:
         inner_capture_col = -1 if is_left_capture else 8
         outer_capture_col = -2 if is_left_capture else 9
 
-        # Move into inner capture column at current row
+        current_row = edge_row
         travel_col = inner_capture_col
+
+        # Move into capture area at current row
         capture_x, capture_y = extended_square_to_steps(current_row, travel_col)
         waypoints.append((capture_x, capture_y))
 
-        # Move vertically toward target row, checking for obstacles
+        # Move vertically toward target row
         row_direction = 1 if capture_row > current_row else -1
         while current_row != capture_row:
             next_row = current_row + row_direction
 
-            # Check if next position in current column is occupied
+            # Check if next position is occupied
             next_occupied = (
                 occupied_capture_squares is not None
                 and (next_row, travel_col) in occupied_capture_squares
             )
 
             if next_occupied:
-                # Current column is blocked at next_row
-                # Try the other column at next_row (diagonal move)
+                # Try other column at next_row (diagonal)
                 other_col = (
                     outer_capture_col if travel_col == inner_capture_col else inner_capture_col
                 )
@@ -190,35 +280,31 @@ def _plan_capture_area_path(
                 )
 
                 if not other_col_next_occupied:
-                    # Other column is free at next_row - move diagonally
+                    # Move diagonally
                     travel_col = other_col
                 else:
-                    # Both columns blocked at next_row
-                    # Move horizontally to other column at current row first
+                    # Both columns blocked - try switching at current row
                     other_col_current_occupied = (
                         occupied_capture_squares is not None
                         and (current_row, other_col) in occupied_capture_squares
                     )
                     if not other_col_current_occupied:
-                        # Switch columns at current row
                         switch_x, switch_y = extended_square_to_steps(current_row, other_col)
                         waypoints.append((switch_x, switch_y))
                         travel_col = other_col
-                    # If we can't switch (both columns occupied at current row too),
-                    # we're stuck - this shouldn't happen in normal gameplay
 
-            # Move to next row in the current column
             current_row = next_row
             next_x, next_y = extended_square_to_steps(current_row, travel_col)
             waypoints.append((next_x, next_y))
-    else:
-        # Already at the target row, just move into the capture area
-        pass
 
     # Finally, move into the capture area at target position
     waypoints.append((to_x, to_y))
 
     return waypoints if waypoints else [(to_x, to_y)]
+
+
+    return []
+
 
 
 def travel(

@@ -8,6 +8,7 @@ dependencies = [
     "gpiozero>=2.0",
     "click>=8.1.0",
     "chess>=1.11.1",
+    "pigpio>=1.78",
 ]
 
 [project.scripts]

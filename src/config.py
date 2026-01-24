@@ -20,7 +20,7 @@ MOTOR_Y_HOME_PIN = 24
 
 # Direction inversion flags
 # Set to True if motor moves in opposite direction than expected
-MOTOR_X_INVERT = False
+MOTOR_X_INVERT = True
 MOTOR_Y_INVERT = False
 
 # Chess Board Configuration
@@ -109,19 +109,25 @@ STEP_DELAY = 0.002
 # Enable/disable acceleration (set to False for constant speed)
 ENABLE_ACCELERATION = True
 
+# Use pigpio for hardware-timed step generation (requires pigpiod daemon)
+# This provides much better timing precision than time.sleep() and allows
+# higher step rates (several kHz vs ~1 kHz with software timing)
+# Set to False to use fallback software timing
+USE_PIGPIO = True
+
 # Minimum step delay (maximum speed) in seconds
-# StealthChop remains quiet up to ~10kHz
-# 60mm/s = 4800 steps/s, 100mm/s = 8000 steps/s, 150mm/s = 12000 steps/s
-MIN_STEP_DELAY = 0.000125  # 8000 steps/second = 100mm/s max speed
+# Cap at 40mm/s for stable operation during tuning
+# 40mm/s = 3200 steps/s with 80 steps/mm
+MIN_STEP_DELAY = 0.0003125  # 3200 steps/second = 40mm/s max speed
 
 # Maximum step delay (starting/ending speed) in seconds
-MAX_STEP_DELAY = 0.002  # 500 steps/second starting speed (faster ramp-up)
+# Use a gentler starting speed closer to max to reduce jitter
+MAX_STEP_DELAY = 0.0004  # 2500 steps/second starting speed (gentler ramp)
 
 # Acceleration steps - number of steps to ramp up/down
-# Larger value = smoother but slower acceleration
-# Recommended: 200-500 for mechanical systems (chess board)
-# 200 steps = ~0.5s ramp, 300 steps = ~0.7s ramp, 500 steps = ~1.2s ramp
-ACCELERATION_STEPS = 200  # Reduced for quicker acceleration
+# Larger value = smoother, more fluent acceleration
+# For chess board: 500 steps = ~1-1.5s smooth ramp (very comfortable)
+ACCELERATION_STEPS = 500  # Long, smooth ramp for fluent motion
 
 # Microstepping Configuration (set via TMC2208 MS1/MS2 pins)
 # 16x microstepping recommended for smooth, quiet operation

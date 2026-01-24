@@ -4,9 +4,17 @@ import os
 import time
 
 try:
-    from gpiozero import Button, DigitalOutputDevice
-
+    from gpiozero import Button, Device, DigitalOutputDevice
     GPIO_AVAILABLE = True
+    # Prefer pigpio pin factory to align with hardware-timed wave generation
+    try:
+        from gpiozero.pins.pigpio import PiGPIOFactory
+
+        Device.pin_factory = PiGPIOFactory()
+    except Exception:
+        # If pigpio pin factory is not available or pigpiod not running,
+        # gpiozero will fall back automatically; warnings are benign.
+        pass
 except ImportError:
     GPIO_AVAILABLE = False
 

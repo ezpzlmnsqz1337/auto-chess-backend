@@ -59,6 +59,7 @@ def create_controller() -> MotorController:
         min_step_delay=config.MIN_STEP_DELAY,
         max_step_delay=config.MAX_STEP_DELAY,
         accel_steps=config.ACCELERATION_STEPS,
+        use_pigpio=config.USE_PIGPIO,
     )
 
 

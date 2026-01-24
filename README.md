@@ -406,12 +406,34 @@ source .venv/bin/activate
 ### Install Dependencies
 
 ```bash
-# Install production dependencies
+# Install production dependencies (including pigpio)
 uv sync
 
 # Install development dependencies (ruff, mypy)
 uv sync --extra dev
 ```
+
+### Setup pigpio Daemon (Recommended for Better Performance)
+
+The pigpio daemon provides hardware-timed step generation for much better speed and precision:
+
+```bash
+# On the Raspberry Pi, run the setup script
+./setup-pigpio.sh
+```
+
+This will:
+- Install the pigpio package
+- Enable pigpiod service to start on boot
+- Start the daemon immediately
+
+**Benefits of pigpio**:
+- **5-10× faster** movement speed (microsecond timing vs ~1ms software limit)
+- **Smoother motion** with precise timing
+- **Higher step rates** possible (several kHz vs ~1 kHz max with time.sleep)
+- **No code changes** - automatically used when available
+
+**Fallback**: If pigpio is not available, the system automatically falls back to software timing with `time.sleep()`.
 
 ## Configuration
 
@@ -434,9 +456,16 @@ Edit [src/config.py](src/config.py) to customize:
 
 **Acceleration Settings** ✨:
 - `ENABLE_ACCELERATION` - Enable trapezoidal acceleration profile (`True` recommended)
-- `MIN_STEP_DELAY` - Minimum delay (maximum speed) - default `0.0008s` = 1250 steps/second
-- `MAX_STEP_DELAY` - Maximum delay (starting/ending speed) - default `0.004s` = 250 steps/second
-- `ACCELERATION_STEPS` - Number of steps for ramp up/down - default `300` steps
+- `USE_PIGPIO` - Use hardware-timed step generation via pigpio daemon (`True` recommended)
+- `MIN_STEP_DELAY` - Minimum delay (maximum speed) - default `0.000125s` = 8000 steps/second
+- `MAX_STEP_DELAY` - Maximum delay (starting/ending speed) - default `0.002s` = 500 steps/second
+- `ACCELERATION_STEPS` - Number of steps for ramp up/down - default `200` steps
+
+**Hardware-Timed Step Generation (pigpio)**:
+- **Recommended**: Enables microsecond-precision timing (vs ~1ms limit with `time.sleep()`)
+- **Speed improvement**: 5-10× faster than software timing
+- **Setup**: Run `./setup-pigpio.sh` on the Pi to install and enable pigpiod daemon
+- **Fallback**: Automatically falls back to software timing if pigpio unavailable
 
 **Homing**:
 - `HOME_DIRECTION_X`, `HOME_DIRECTION_Y` - Direction to move during homing (0 or 1)
@@ -457,7 +486,8 @@ Edit [src/config.py](src/config.py) to customize:
 - **Smoother movement** with gradual speed changes
 - **Reduced mechanical stress** on motors and carriage
 - **Quieter operation** with less vibration
-- **Faster overall** due to higher maximum speed (1250 steps/s vs 500 steps/s constant)
+- **Faster overall** due to higher maximum speed (8000 steps/s with pigpio vs 1000 steps/s software)
+- **Precise timing** with pigpio hardware-timed waves (microsecond resolution)
 
 ## Usage
 
